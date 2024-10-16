@@ -1,0 +1,106 @@
+\documentclass[a4paper, 11pt]{article}
+\usepackage{amsmath, amssymb} % math
+\usepackage[round]{natbib} % bibliography
+\usepackage[dvipsnames,table]{xcolor} % colors
+\usepackage[onehalfspacing]{setspace} % more space
+
+%% margins
+\usepackage{geometry}
+\geometry{
+  a4paper,
+  total={170mm,257mm},
+  left=20mm,
+  right=20mm,
+  top=30mm,
+  bottom=30mm,
+}
+
+\newcommand\mail{yangmi@ethz.ch}
+\title{\textbf{Code exploration}}
+\author{Minghan Yang}
+\date{\today}
+
+\usepackage{hyperref}
+\hypersetup{
+  bookmarksopen=true, 
+  breaklinks=true,
+  pdfsubject={},
+  pdfkeywords={},
+  colorlinks=true,
+  linkcolor=black,
+  anchorcolor=black,
+  citecolor=blue,
+  urlcolor=blue,
+}
+
+<< "main-setup", echo = FALSE>>=
+## setting knitr options (see https://yihui.org/knitr/ for all the options)
+library(knitr)
+opts_chunk$set(fig.height = 4,
+               echo = FALSE,
+               warning = FALSE,
+               message = FALSE
+               )
+@
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+\maketitle
+
+
+\begin{abstract}
+Codes related to paper "Beyond p-values: A phase II dual-criterion design with statistical significance and clinical relevance".
+\end{abstract}
+
+\section{Introduction}
+Proof-of-concept in Phase II trails is important in investigating the efficacy of an experimental drug. It will influence the decision of whether continuing or not continuing the development of this drug. \\
+Dual-criterion design in frequentist and Bayesian applications are discussed. \\
+Three generic phase II designs are reviewed:
+\begin{enumerate}
+\item Standard design\\
+For comparative treatment and control trails, it puts forward criteria expressed as error rates: Type I error control and Power (correctly reject $H_0$ when it is false).\\
+Control type I error and maximize power.\\
+Type I error: $\mathbb{P}(\text{reject } H_0 | H_0 \text{ is true})=\alpha$\\
+Type II error: $\mathbb{P}(\text{not reject } H_0 | H_0 \text{ is false})=\beta$.\\
+Limitation: statistical significant only guarantees evidence to reject ``No effect", but is not sufficient for clinical perspective. Also, it always result in success or failure according to statistical significance.\\
+Increasing the sample size increases the power for effects better than null.
+\item Dual-criterion design\\
+Considers both the statistical significance and the effect estimate. \\
+Required inputs: type I error control (null hypothesis and type I error $\alpha$) and a decision value (DV). The DV is same as the target difference in Fisch's paper. It is the minimal effect estimate needed for trail success (if higher than this value with moderate confidence, then GO).\\
+By considering both, we have both statistical significance and guarantees a sufficiently large effect estimate.\\
+The dual-criterion is more demanding, the resulting power of study is less compared to standard design.\\
+Power is only increased for values superior to the DV since inferior values are clinically irrelevant.
+\item Precision design\\
+Doesn't rely on error rates. When null hypothesis or other benchmark values cannot be determined, this can be an option. It requires sufficiently precise effect estimate.\\
+Precision=$\frac{TP}{TP+FP}$. High Precision means that when the model predicts a positive outcome, it is very likely to be correct.
+\end{enumerate}
+Consider hazard function in survival analysis, it describes the risk of failing. We consider Hazard ratio between experimental drug and control as the outcome of interest. Hazard ratio(HR) less than 1 means the drug is better than control. We want to reduce hazard and hazard ratio.\\
+\textbf{Sample size:}
+\begin{equation*}
+n_{min}=\frac{\sigma^2 \times z_{\alpha}^2}{(NV-DV)^2}
+\end{equation*}
+It is the minimum sample size that implies statistical significance if the effect estimate equals the DV. \\
+
+<< echo = TRUE, fig.height = 4.5 >>=
+plot(Sepal.Width ~ Petal.Length, data = iris)
+@
+
+Code outputs can also be used inline with \texttt{Sexpr\{..R code..\}}, for
+example, 1+1=\Sexpr{1+1}
+
+Here is a reference \citet{Cornfield1966}
+
+
+
+%% References
+\bibliographystyle{apalike}
+\bibliography{bibliography}
+
+\newpage
+\section*{Computational details}
+<< "sessionInfo" >>=
+cat(paste(Sys.time(), Sys.timezone(), "\n"))
+sessionInfo()
+@
+
+\end{document}
