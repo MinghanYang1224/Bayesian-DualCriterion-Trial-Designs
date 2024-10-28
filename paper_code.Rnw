@@ -53,7 +53,7 @@ opts_chunk$set(fig.height = 4,
 
 
 \begin{abstract}
-Codes related to paper ``Beyond p-values: A phase II dual-criterion design with statistical significance and clinical relevance''.
+Related to paper ``Beyond p-values: A phase II dual-criterion design with statistical significance and clinical relevance'' \citet{Roychoudhury2018}.
 \end{abstract}
 
 \section{Introduction}
@@ -119,23 +119,23 @@ Consider hazard function in survival analysis, it describes the risk of failing.
 \begin{equation*}
 n_{min}=\frac{\sigma^2 \times z_{\alpha}^2}{(NV-DV)^2}
 \end{equation*}
-It is the minimum sample size that implies statistical significance if the effect estimate equals the DV. This value is calculated under the situation that both criterion are just satisfied. As illustrated in the below graph, when the effect estimate $\theta=$ DV, and the lower bound of the confidence interval just touches the NV so that statistical significance is reached.
+It is the minimum sample size that implies statistical significance if the effect estimate equals the DV. This value is calculated under the situation that both criterion are just satisfied. As illustrated in the below graph, when the effect estimate $\theta=$ DV, and the lower bound of the confidence interval just touches the NV so that statistical significance is reached. Notice that when sample size equals the minimum sample size, there can only be GO or NO-GO decisions.
 << plot, echo=FALSE, results=hide>>=
 png("N_min.png", width = 1200, height = 800, res = 150)
 
 # Define x-axis range and labels
-x <- c(1, 5.5)
+x <- c(5.5,10)
 par(mar = c(4, 4, 2, 2) + 0.1)
 # Set up an empty plot with x-axis labeled points
 plot(1:6, type = "n", xaxt = "n", ylim = c(0.2, 0.5), yaxt = "n", ylab = "Y", xlab = "Hazard Ratio", xlim=c(-2,12))
-axis(1, at = x, labels = c("NV", "DV"))
+axis(1, at = x, labels = c("DV", "NV=1"))
 
 # Add vertical slim strip constrained in y-axis between 0.6 and 0.63
 rect(1, 0.3, 10, 0.32, col = rgb(0.5, 0.5, 1, alpha = 0.3), border = NA)
 
 # Add vertical dashed lines at x = 1 and x = 5.5
 abline(v = x, col = "black", lty = 2)
-abline(v=10, col="black",lty=2)
+abline(v=1, col="black",lty=2)
 
 library(latex2exp)
 text(x=1.3, y=0.35, labels = TeX("$\\theta-z_{\\alpha} \\sqrt{\\frac{\\sigma^2}{n_{min}}}$"))
@@ -150,61 +150,133 @@ dev.off()
 \end{figure}
 
 \noindent \textbf{Operating characteristics:}\\
-The operating characteristics are the type I error and power of the clinical trial design. 
+The operating characteristics are the type I error and power of the clinical trial design. \\
+For dual-criterion designs, the power at the DV is approximately 50\%, so that if the true parameter equals the DV, there is roughly equal chance that the effect estimate lies on either side of the DV. Having 50\% at the DV does not mean the study is under-powered.
 
 \section{Example 1: A randomized PoC design with time-to-event data}
-<< echo = TRUE, fig.height = 4.5 >>=
+Randomized, double-blind, RCT. Patients were randomized equally to: (experimental drug + standard care) OR (standard care only).\\
+Primary outcome of interest (or called ``endpoint'') is the progression-free survival (PFS), which is the time when the disease or cancer do not get worse. The endpoint was assessed with a \emph{log-rank test} and \emph{Cox regression} with treatment as a covariate.
+\begin{itemize}
+\item \emph{log-rank test}: compare the survival distributions of two or more groups. It tests the hypothesis that there is no difference in survival (or time-to-event) between the two groups. If the log-rank test indicates a significant difference, it suggests the treatment affects how long patients live without their disease worsening.
+\item \emph{Cox regression}: estimate the hazard ratio between two groups, which tells us the relative risk of disease progression in the treatment group compared to the control group. If the $HR < 1$, it suggests that the new treatment delays disease progression better than the control treatment.
+\end{itemize}
+As for the DV, HR=0.7 was deemed necessary to be clinically meaningful. Values larger than 0.7 are unsatisfactory to clearly justify further development of the drug.\\
+So the dual-criterion is:
+\begin{enumerate}
+\item Statistical significance: one-sided p-value of log-rank test $\leq 0.1$.
+\item Clinical relevance: estimated HR from Cox regression $\leq 0.70$.
+\end{enumerate}
+\subsection{Reproduce Table 3}
+Attempt to reproduce the values in Table 3. The main problem is to find the correct value for $\sigma$. There seem to be no detailed information about the choice of value for $\sigma$. We chose it to be 2 according to page 455 in the paper. However, under this value, the calculated values do not agree with the ones in Table 3. \\
+Also, the calculation of $\hat{\theta} = 0.736, 0.708, 0.659, 0.761$ should be looked into when the correct $\sigma$ is decided. The current understanding is that these values are calculated when the estimate $\hat{\theta} > DV$ and the confidence interval just touches 1, i.e. NO-GO is implied.
+<< echo = FALSE >>=
 n.min <- (4*qnorm(0.9)^2)/(log(1)-log(0.7))^2
 
 # a sequence of true HR.
 t.d <- seq(0, 1, 0.1)
 
-#Dual-criterion design: alpha=0.1, DV=0.7, n=70
+# Dual-criterion design: alpha=0.1, DV=0.7, n=70
 n1 <- 70
 sd1 <- sqrt((2*2^2)/n1) #sigma assumed to be 2?
+#sqrt((1.723522^2)/n1)
 cut.ssig <- 0.736 # statistical significance NV=1
 cut.crel <- 0.7 # critical relevance
 pp.go1 <- pnorm(cut.crel, t.d, sd1)
 pp.ngo1 <- 1- pnorm(cut.ssig, t.d, sd1)
 pp.intd1 <- 1 -pp.go1 - pp.ngo1
 
+subtable1 <- matrix(data=c(t.d, pp.go1,pp.ngo1,pp.intd1), ncol=4)
 
-#OC=65
-
-n2 <- 65
-sd2 <- sqrt((2*20^2)/n2)
-cut.ssig <- 3.179
-cut.crel <- 5
-pp.go2 <- 1- pnorm(cut.crel, t.d, sd2)
-pp.ngo2 <- pnorm(cut.ssig, t.d, sd2)
+# Dual-criterion design: alpha=0.1, DV=0.7, n=52
+n2 <- 52
+sd2 <- sqrt((2*2^2)/n2)
+cut.ssig <- 0.7
+cut.crel <- 0.7
+pp.go2 <- pnorm(cut.crel, t.d, sd2)
+pp.ngo2 <- 1-pnorm(cut.ssig, t.d, sd2)
 pp.intd2 <- 1 -pp.go2 - pp.ngo2
 
+subtable2 <- matrix(data=c(t.d, pp.go2,pp.ngo2,pp.intd2), ncol=4)
 
+# Dual-criterion design: alpha=0.1, beta=0.1, n=55
+n3 <- 55
+sd3 <- sqrt((2*2^2)/n3)
+cut.ssig <- qnorm(0.9, 0.5, sd3) # different from 0.708
+cut.crel <- qnorm(0.9, 0.5, sd3)
+pp.go3 <- pnorm(cut.crel, t.d, sd3)
+pp.ngo3 <- 1-pnorm(cut.ssig, t.d, sd3)
+pp.intd3 <- 1 -pp.go3 - pp.ngo3
+
+subtable3 <- matrix(data=c(t.d, pp.go3,pp.ngo3,pp.intd3), ncol=4)
+
+# Dual-criterion design: alpha=0.1, beta=0.2, n=38
+n4 <- 38
+sd4 <- sqrt((2*2^2)/n4)
+cut.ssig <- qnorm(0.8, 0.5, sd4) # different from 0.659
+cut.crel <- qnorm(0.8, 0.5, sd4)
+pp.go4 <- pnorm(cut.crel, t.d, sd4)
+pp.ngo4 <- 1-pnorm(cut.ssig, t.d, sd4)
+pp.intd4 <- 1 -pp.go4 - pp.ngo4
+
+subtable4 <- matrix(data=c(t.d, pp.go4,pp.ngo4,pp.intd4), ncol=4)
+
+# Dual-criterion design: alpha=0.2, beta=0.1, n=38
+n5 <- 38
+sd5 <- sqrt((2*2^2)/n5)
+cut.ssig <- qnorm(0.9, 0.5, sd5) # different from 0.659
+cut.crel <- qnorm(0.9, 0.5, sd5)
+pp.go5 <- pnorm(cut.crel, t.d, sd5)
+pp.ngo5 <- 1-pnorm(cut.ssig, t.d, sd4)
+pp.intd5 <- 1 -pp.go5 - pp.ngo5
+
+subtable5 <- matrix(data=c(t.d, pp.go5,pp.ngo5,pp.intd5), ncol=4)
+
+Table3 <- rbind(subtable1[6:11,],subtable2[6:11,],subtable3[6:11,], subtable4[6:11,], subtable5[6:11,])
+colnames(Table3) <- c("True HR", "GO", "NO-GO", "Inconclusive")
+rownames(Table3) <- c(rep("1",6),rep("2",6),rep("3",6),rep("4",6),rep("5",6))
+Table3
+@
+
+<<plots, echo = FALSE>>=
 
 #Plot 
 
-# par(mfrow=c(1,2))
-# 
-# plot(t.d, pp.go1, type="l", xlab= expression(delta), ylab="Probability", main="n=27", col="green", ylim=c(0,1))
-# lines(t.d, pp.ngo1, type="l", col="red")
-# lines(t.d, pp.intd1, type="l", col="darkgoldenrod1")
-# abline(h=0.1, lty=2)
-# abline(h=0.8, lty=2)
-# abline(v=0.8, lty=1)
-# 
-# plot(t.d, pp.go2, type="l", xlab= expression(delta), ylab="Probability", main="n=65", col="green", ylim=c(0,1))
-# lines(t.d, pp.ngo2, type="l", col="red")
-# lines(t.d, pp.intd2, type="l", col="darkgoldenrod1")
-# abline(h=0.1, lty=2)
-# abline(h=0.8, lty=2)
-# abline(v=8, lty=1)
+par(mfrow=c(1,2))
+
+plot(t.d, pp.go1, type="l", xlab= "Hazard Ratio", ylab="Probability", main="n=70", col="green", ylim=c(0,1))
+lines(t.d, pp.ngo1, type="l", col="red")
+lines(t.d, pp.intd1, type="l", col="darkgoldenrod1")
+abline(h=0.1, lty=2)
+abline(h=0.8, lty=2)
+abline(v=0.8, lty=1)
+
+plot(t.d, pp.go2, type="l", xlab= "Hazard Ratio", ylab="Probability", main="n=52", col="green", ylim=c(0,1))
+lines(t.d, pp.ngo2, type="l", col="red")
+lines(t.d, pp.intd2, type="l", col="darkgoldenrod1")
+abline(h=0.1, lty=2)
+abline(h=0.8, lty=2)
+abline(v=0.8, lty=1)
+
+
 @
 
 
-
-Here is a reference \citet{Cornfield1966}
-
-
+\section{Example 2: A single-arm PoC design with binary data}
+Experimental drug in Chinese patients with non-small-cell lung cancer. \\
+Primary endpoint is objective response rate (ORR), which quantifies the preliminary efficacy of the experimental drug. \\
+Prior: minimally informative unimodal beta prior distribution $Beta(0.0811,1)$, which has mean 0.75.\\
+NV is set to 7.5\% rather than 0, because of the absence of a comparator (in single arm trials). \\
+DV is set to be 10\%+7.5\%=17.5\%.\\
+So the dual-criterion is:
+\begin{enumerate}
+\item Bayesian statistical significance: $\mathbb{P}(ORR \geq 7.5\% | data) \geq 0.95$
+\item Clinical relevance: Posterior median $\geq 17.5\%$
+\end{enumerate}
+The minimal sample size was 22. Final sample size 25. \\
+Null hypothesis: there is no effect of the drug, i.e. ORR=7.5\%\\
+$\mathbb{P}(\text{type I error})=\mathbb{P}(\text{reject } H_0 | H_0 \text{ is true})=\mathbb{P}(\text{reject } H_0 | ORR \leq 7.5\%)$\\
+$\mathbb{P}(\text{type II error})=\mathbb{P}(\text{not reject } H_0 | H_0 \text{ is false})=\mathbb{P}(\text{reject } H_0 | ORR= \text{response rate})$\\
+Table 4 results show that this dual-criterion design is a three-outcome design with desirable properties. 
 
 %% References
 \bibliographystyle{apalike}
