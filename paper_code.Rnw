@@ -153,6 +153,47 @@ dev.off()
 The operating characteristics are the type I error and power of the clinical trial design. \\
 For dual-criterion designs, the power at the DV is approximately 50\%, so that if the true parameter equals the DV, there is roughly equal chance that the effect estimate lies on either side of the DV. Having 50\% at the DV does not mean the study is under-powered.
 
+\subsection{Reproduce Figure 1}
+<<Figure 1, echo=FALSE, results=hide>>=
+# a sequence of true HR.
+t.d <- seq(0, 1, 0.01)
+
+n <- 309
+sd <- sqrt((2*2^2)/n) #sigma assumed to be 2?
+cut.ssig <- 0.8 # statistical significance NV=1
+cut.crel <- 0.8 # critical relevance
+pp.go <- pnorm(cut.crel, t.d, sd)
+pp.ngo <- 1- pnorm(cut.ssig, t.d, sd)
+pp.intd <- 1 -pp.go - pp.ngo
+
+n <- 420
+sd <- sqrt((2*2^2)/n) #sigma assumed to be 2?
+cut.ssig <- 0.83 # statistical significance NV=1
+cut.crel <- 0.8 # critical relevance
+pp.go6 <- pnorm(cut.crel, t.d, sd)
+pp.ngo6 <- 1- pnorm(cut.ssig, t.d, sd)
+pp.intd6 <- 1 -pp.go6 - pp.ngo6
+
+png("Figure 1.png", width = 1200, height = 800, res = 150)
+par(mfrow=c(1,2))
+plot(t.d, pp.go, type="l", xlab= "Hazard Ratio", ylab="Probability", main="n=309", col="green", ylim=c(0,1),xlim=c(0.3,1))
+lines(t.d, pp.ngo, type="l", col="red")
+lines(t.d, pp.intd, type="l", col="darkgoldenrod1")
+abline(v=0.8, lty=1)
+
+plot(t.d, pp.go6, type="l", xlab= "Hazard Ratio", ylab="Probability", main="n=420", col="green", ylim=c(0,1),xlim=c(0.3,1))
+lines(t.d, pp.ngo6, type="l", col="red")
+lines(t.d, pp.intd6, type="l", col="darkgoldenrod1")
+abline(v=0.8, lty=1)
+dev.off()
+
+@
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{Figure 1.png}
+\caption{Reproduce Figure 1}
+\end{figure}
+
 \section{Example 1: A randomized PoC design with time-to-event data}
 Randomized, double-blind, RCT. Patients were randomized equally to: (experimental drug + standard care) OR (standard care only).\\
 Primary outcome of interest (or called ``endpoint'') is the progression-free survival (PFS), which is the time when the disease or cancer do not get worse. The endpoint was assessed with a \emph{log-rank test} and \emph{Cox regression} with treatment as a covariate.
@@ -241,8 +282,6 @@ Table3
 
 #Plot 
 
-par(mfrow=c(1,2))
-
 plot(t.d, pp.go1, type="l", xlab= "Hazard Ratio", ylab="Probability", main="n=70", col="green", ylim=c(0,1))
 lines(t.d, pp.ngo1, type="l", col="red")
 lines(t.d, pp.intd1, type="l", col="darkgoldenrod1")
@@ -256,7 +295,6 @@ lines(t.d, pp.intd2, type="l", col="darkgoldenrod1")
 abline(h=0.1, lty=2)
 abline(h=0.8, lty=2)
 abline(v=0.8, lty=1)
-
 
 @
 
