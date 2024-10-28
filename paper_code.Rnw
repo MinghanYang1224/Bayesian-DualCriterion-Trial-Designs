@@ -316,6 +316,19 @@ $\mathbb{P}(\text{type I error})=\mathbb{P}(\text{reject } H_0 | H_0 \text{ is t
 $\mathbb{P}(\text{type II error})=\mathbb{P}(\text{not reject } H_0 | H_0 \text{ is false})=\mathbb{P}(\text{reject } H_0 | ORR= \text{response rate})$\\
 Table 4 results show that this dual-criterion design is a three-outcome design with desirable properties. 
 
+\subsection{Reproduce Figure 2}
+<<Figure 2, echo=FALSE>>=
+
+
+@
+
+\subsection{Reproduce Table 4}
+<<Table 4, echo=FALSE>>=
+
+
+@
+
+
 %% References
 \bibliographystyle{apalike}
 \bibliography{bibliography}
