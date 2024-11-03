@@ -6,6 +6,9 @@
 \usepackage[onehalfspacing]{setspace} % more space
 \usepackage{graphicx}
 \usepackage{float}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
 
 
 %% margins
@@ -159,115 +162,102 @@ In Figure 1, the two plots illustrate the operating characteristics of dual-crit
 n_{min}=\frac{2^2 \times z_{0.025}^2}{(\log{1}-\log{0.8})^2} = 308.594 \approx 309
 \end{equation*}
 The probability of making a ``GO'' decision is the probability of the estimate smaller than the decision value and 
-<<Figure 1, eval=FALSE, echo=TRUE, results=hide, fig=TRUE, highlight=TRUE>>=
-# a sequence of true hazard ratios in log scale.
-t.d <- log(seq(0.5, 1, 0.01))
-
-# Left panel: sample size = 309
-n <- 309
-sd <- sqrt((2^2)/n) #sigma assumed to be 2. 
-cut.ssig <- log(0.8) # statistical significance 
-cut.crel <- log(0.8) # clinical relevance DV=0.8
-pp.go <- pnorm(cut.crel, t.d, sd)
-pp.ngo <- 1- pnorm(cut.ssig, t.d, sd)
-pp.intd <- 1 -pp.go - pp.ngo
-
-# Right panel: sample size = 420 
-n <- 420
-sd <- sqrt((2^2)/n) #sigma assumed to be 2
-#cut.ssig <- log(0.83) # statistical significance NV=1????
-cut.ssig <- log(1-qnorm(0.975)*sqrt(2^2/420))
-cut.crel <- log(0.8) # critical relevance
-pp.go6 <- pnorm(cut.crel, t.d, sd)
-pp.ngo6 <- 1- pnorm(cut.ssig, t.d, sd)
-pp.intd6 <- 1 -pp.go6 - pp.ngo6
-
-#png("Figure 1.png", width = 1200, height = 800, res = 150)
-par(mfrow=c(1,2),las=1)
-plot(exp(t.d), pp.go, type="l", xlab= "Hazard Ratio", ylab="Probability", 
-     main="n=309", col="green", ylim=c(0,1),xlim=c(0.5,1))
-lines(exp(t.d), pp.ngo, type="l", col="red")
-lines(exp(t.d), pp.intd, type="l", col="darkgoldenrod1")
-abline(v=0.8, lty=1)
-
-plot(exp(t.d), pp.go6, type="l", xlab= "Hazard Ratio", ylab="Probability", 
-     main="n=420", col="green", ylim=c(0,1),xlim=c(0.5,1))
-lines(exp(t.d), pp.ngo6, type="l", col="red")
-lines(exp(t.d), pp.intd6, type="l", col="darkgoldenrod1")
-abline(v=0.8, lty=1)
-@
-
-<<Figure 1, fig=TRUE>>=
+\begin{center}
+<<Figure 1, fig=TRUE, results=hide>>=
 # Load necessary libraries
 library(ggplot2)
 library(cowplot)
+library(gridExtra)
+library(grid)
 
-# Data preparation
+# Sequence of true hazard ratios in log scale
 t.d <- log(seq(0.5, 1, 0.01))
 
-# Left panel data (n = 309)
+# Left panel (n = 309)
 n1 <- 309
-sd1 <- sqrt((2^2) / n1)  # sigma assumed to be 2
-cut.ssig1 <- log(0.8)    # statistical significance 
-cut.crel1 <- log(0.8)    # clinical relevance DV=0.8
+sd1 <- sqrt((2^2) / n1)
+cut.ssig1 <- log(0.8)
+cut.crel1 <- log(0.8)
 pp.go1 <- pnorm(cut.crel1, t.d, sd1)
 pp.ngo1 <- 1 - pnorm(cut.ssig1, t.d, sd1)
 pp.intd1 <- 1 - pp.go1 - pp.ngo1
+df1 <- data.frame(HazardRatio = exp(t.d), GO = pp.go1, NOGO = pp.ngo1, Inconclusive = pp.intd1)
 
-# Right panel data (n = 420)
+# Right panel (n = 420)
 n2 <- 420
-sd2 <- sqrt((2^2) / n2)  # sigma assumed to be 2
-cut.ssig2 <- log(1 - qnorm(0.975) * sqrt(2^2 / 420)) # statistical significance 
-cut.crel2 <- log(0.8)  # clinical relevance
+sd2 <- sqrt((2^2) / n2)
+cut.ssig2 <- log(1) - qnorm(0.975) * sqrt(2^2 / 420)
+cut.crel2 <- log(0.8)
 pp.go2 <- pnorm(cut.crel2, t.d, sd2)
 pp.ngo2 <- 1 - pnorm(cut.ssig2, t.d, sd2)
 pp.intd2 <- 1 - pp.go2 - pp.ngo2
+df2 <- data.frame(HazardRatio = exp(t.d), GO = pp.go2, NOGO = pp.ngo2, Inconclusive = pp.intd2)
 
-# Data for plotting
-df1 <- data.frame(HazardRatio = exp(t.d), GO = pp.go1, NOGO = pp.ngo1, 
-                  Inconclusive = pp.intd1)
-df2 <- data.frame(HazardRatio = exp(t.d), GO = pp.go2, NOGO = pp.ngo2, 
-                  Inconclusive = pp.intd2)
+# Define the line colors and types
+line_colors <- c("GO" = "green3", "Inconclusive" = "darkgoldenrod2", "NO-GO" = "red3")
+line_types <- c("GO" = "solid", "Inconclusive" = "dotted", "NO-GO" = "dashed")
 
-# Left panel plot (n = 309)
+# Plot for n = 309
 p1 <- ggplot(df1, aes(x = HazardRatio)) +
-  geom_line(aes(y = GO, color = "GO")) +
-  geom_line(aes(y = NOGO, color = "NOGO")) +
-  geom_line(aes(y = Inconclusive, color = "Inconclusive")) +
-  geom_vline(xintercept = c(0.8, 1.0), linetype = "dashed", color = "black") +  
-  labs(x = "Hazard Ratio", y = "Probability", title = "n = 309") +
-  scale_color_manual(values = c("GO" = "green", "NOGO" = "red", 
-                                "Inconclusive" = "darkgoldenrod1")) +
-  theme_minimal() +
-  theme(legend.position = "bottom")
-
-# Right panel plot (n = 420)
-p2 <- ggplot(df2, aes(x = HazardRatio)) +
-  geom_line(aes(y = GO, color = "GO")) +
-  geom_line(aes(y = NOGO, color = "NOGO")) +
-  geom_line(aes(y = Inconclusive, color = "Inconclusive")) +
+  geom_line(aes(y = GO, color = "GO", linetype = "GO"),size=0.8) +
+  geom_line(aes(y = NOGO, color = "NO-GO", linetype = "NO-GO"),size=0.8) +
+  geom_line(aes(y = Inconclusive, color = "Inconclusive", 
+                linetype = "Inconclusive"),size=1.5) +
   geom_vline(xintercept = c(0.8, 1.0), linetype = "dashed", color = "black") +
-  labs(x = "Hazard Ratio", y = "Probability", title = "n = 420") +
-  scale_color_manual(values = c("GO" = "green", "NOGO" = "red", 
-                                "Inconclusive" = "darkgoldenrod1")) +
+  labs(title = "Nevent = 309") +
+  scale_color_manual(values = line_colors) +
+  scale_linetype_manual(values = line_types) +
   theme_minimal() +
-  theme(legend.position = "bottom")
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    panel.grid.minor = element_blank(),
+    axis.title.y = element_blank(),  # Remove individual y-labels
+    axis.title.x = element_blank()
+  )
 
-# Combine the plots with shared legend at the bottom
-combined_plot <- plot_grid(p1 + theme(legend.position = "none"),
-                           p2 + theme(legend.position = "none"),
-                           ncol = 2,
-                           align = 'hv',
-                           rel_widths = c(1.5, 1.5))  
-# Adjust widths to make the plots wider
+# Plot for n = 420
+p2 <- ggplot(df2, aes(x = HazardRatio)) +
+  geom_line(aes(y = GO, color = "GO", linetype = "GO"),size=0.8) +
+  geom_line(aes(y = NOGO, color = "NO-GO", linetype = "NO-GO"),size=0.8) +
+  geom_line(aes(y = Inconclusive, color = "Inconclusive", 
+                linetype = "Inconclusive"),size=1.5) +
+  geom_vline(xintercept = c(0.8, 1.0), linetype = "dashed", color = "black") +
+  labs(title = "Nevent = 420") +
+  scale_color_manual(values = line_colors) +
+  scale_linetype_manual(values = line_types) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    panel.grid.minor = element_blank(),
+    axis.title.y = element_blank(),  # Remove individual y-labels
+    axis.title.x = element_blank()
+  )
 
-# Extract legend from one of the plots
-legend <- get_legend(p1)
+# Combine the plots into a single figure without individual y-axis labels
+combined_plots <- plot_grid(p1, p2, ncol = 2, align = 'hv', rel_widths = c(1, 1))
 
-# Final plot with shared legend at the bottom
-final_plot <- plot_grid(combined_plot, legend, ncol = 1, rel_heights = c(1, 0.1))
+# Extract and create a shared legend
+legend <- get_legend(
+  p1 + theme(legend.position = "right") +
+    guides(color = guide_legend(title = "Decision", nrow = 1), 
+           linetype = guide_legend(title = "Decision", nrow = 1)))
+
+# Add a shared y-axis label using grid.arrange
+final_plot <- grid.arrange(
+  arrangeGrob(combined_plots, 
+              left = textGrob("Probability", rot = 90, vjust = 1.2),
+              bottom = textGrob("Hazard Ratio",just = "centre")),
+  legend = legend,
+  ncol = 1,
+  heights = c(10, 1) 
+)
+
+# Print the final plot
 print(final_plot)
 @
+\end{center}
 
 \section{Example 1: A randomized PoC design with time-to-event data}
 Randomized, double-blind, RCT. Patients were randomized equally to: (experimental drug + standard care) OR (standard care only).\\
@@ -283,9 +273,10 @@ So the dual-criterion is:
 \item Clinical relevance: estimated HR from Cox regression $\leq 0.70$.
 \end{enumerate}
 \subsection{Reproduce Table 3}
-Attempt to reproduce the values in Table 3. The main problem is to find the correct value for $\sigma$. There seem to be no detailed information about the choice of value for $\sigma$. We chose it to be 2 according to page 455 in the paper. However, under this value, the calculated values do not agree with the ones in Table 3. \\
+Attempt to reproduce the values in Table 3. The main problem is to find the correct value for $\sigma$. There seem to be no detailed information about the choice of value for $\sigma$. We chose it to be 2 according to page 455 in the paper. \\
 Also, the calculation of $\hat{\theta} = 0.736, 0.708, 0.659, 0.761$ should be looked into when the correct $\sigma$ is decided. The current understanding is that these values are calculated when the estimate $\hat{\theta} > \text{DV}$ and the confidence interval just touches 1, i.e. NO-GO is implied.
-<< echo = TRUE >>=
+<< Table 3, echo = TRUE, results=tex >>=
+library(kableExtra)
 n.min <- (4*qnorm(0.9)^2)/(log(1)-log(0.7))^2
 
 # a sequence of true HR.
@@ -295,13 +286,14 @@ t.d <- log(seq(0.5, 1, 0.1))
 n1 <- 70
 sd1 <- sqrt((2^2)/n1) #sigma assumed to be 2?
 #sqrt((1.723522^2)/n1)
-cut.ssig <- log(0.736) # statistical significance NV=1
+# cut.ssig <- 0-qnorm(0.9)* sqrt(2^2 / 70)
+cut.ssig <- log(exp(0-qnorm(0.9)* sqrt(2^2 / n1))) # statistical significance NV=1
 cut.crel <- log(0.7) # critical relevance
 pp.go1 <- pnorm(cut.crel, t.d, sd1)
 pp.ngo1 <- 1- pnorm(cut.ssig, t.d, sd1)
 pp.intd1 <- 1 -pp.go1 - pp.ngo1
 
-subtable1 <- matrix(data=c(t.d, pp.go1,pp.ngo1,pp.intd1), ncol=4)
+subtable1 <- matrix(data=round(c(exp(t.d), pp.go1,pp.ngo1,pp.intd1),3), ncol=4)
 
 # Dual-criterion design: alpha=0.1, DV=0.7, n=52
 n2 <- 52
@@ -312,71 +304,63 @@ pp.go2 <- pnorm(cut.crel, t.d, sd2)
 pp.ngo2 <- 1-pnorm(cut.ssig, t.d, sd2)
 pp.intd2 <- 1 -pp.go2 - pp.ngo2
 
-subtable2 <- matrix(data=c(t.d, pp.go2,pp.ngo2,pp.intd2), ncol=4)
+subtable2 <- matrix(data=round(c(exp(t.d), pp.go2,pp.ngo2,pp.intd2),3), ncol=4)
 
 # Dual-criterion design: alpha=0.1, beta=0.1, n=55
 n3 <- 55
-sd3 <- sqrt((2*2^2)/n3)
-cut.ssig <- qnorm(0.9, 0.5, sd3) # different from 0.708
-cut.crel <- qnorm(0.9, 0.5, sd3)
+sd3 <- sqrt((2^2)/n3)
+cut.ssig <- log(0.708)
+cut.crel <- log(0.708)
+cut.ssig <- qnorm(0.9,log(0.5),sd3) # different from 0.708
+cut.crel <- qnorm(0.9,log(0.5),sd3)
 pp.go3 <- pnorm(cut.crel, t.d, sd3)
 pp.ngo3 <- 1-pnorm(cut.ssig, t.d, sd3)
 pp.intd3 <- 1 -pp.go3 - pp.ngo3
 
-subtable3 <- matrix(data=c(t.d, pp.go3,pp.ngo3,pp.intd3), ncol=4)
+subtable3 <- matrix(data=round(c(exp(t.d), pp.go3,pp.ngo3,pp.intd3),3), ncol=4)
 
 # Dual-criterion design: alpha=0.1, beta=0.2, n=38
 n4 <- 38
-sd4 <- sqrt((2*2^2)/n4)
-cut.ssig <- qnorm(0.8, 0.5, sd4) # different from 0.659
-cut.crel <- qnorm(0.8, 0.5, sd4)
+sd4 <- sqrt((2^2)/n4)
+cut.ssig <- log(exp(0-qnorm(0.9)* sqrt(2^2 / n4))) # different from 0.659
+cut.crel <- log(exp(0-qnorm(0.9)* sqrt(2^2 / n4)))
 pp.go4 <- pnorm(cut.crel, t.d, sd4)
 pp.ngo4 <- 1-pnorm(cut.ssig, t.d, sd4)
 pp.intd4 <- 1 -pp.go4 - pp.ngo4
 
-subtable4 <- matrix(data=c(t.d, pp.go4,pp.ngo4,pp.intd4), ncol=4)
+subtable4 <- matrix(data=round(c(exp(t.d), pp.go4,pp.ngo4,pp.intd4),3), ncol=4)
 
 # Dual-criterion design: alpha=0.2, beta=0.1, n=38
 n5 <- 38
-sd5 <- sqrt((2*2^2)/n5)
-cut.ssig <- qnorm(0.9, 0.5, sd5) # different from 0.659
-cut.crel <- qnorm(0.9, 0.5, sd5)
+sd5 <- sqrt((2^2)/n5)
+cut.ssig <- log(exp(0-qnorm(0.8)* sqrt(2^2 / n5))) 
+# How is the power guaranteed to be 0.1? This is only using alpha=0.2.
+cut.crel <- log(exp(0-qnorm(0.8)* sqrt(2^2 / n5)))
 pp.go5 <- pnorm(cut.crel, t.d, sd5)
-pp.ngo5 <- 1-pnorm(cut.ssig, t.d, sd4)
+pp.ngo5 <- 1-pnorm(cut.ssig, t.d, sd5)
 pp.intd5 <- 1 -pp.go5 - pp.ngo5
 
-subtable5 <- matrix(data=c(t.d, pp.go5,pp.ngo5,pp.intd5), ncol=4)
+subtable5 <- matrix(data=round(c(exp(t.d), pp.go5,pp.ngo5,pp.intd5),3), ncol=4)
 
-# Table3 <- rbind(subtable1[6:11,],subtable2[6:11,],subtable3[6:11,], 
-# subtable4[6:11,], subtable5[6:11,])
-# colnames(Table3) <- c("True HR", "GO", "NO-GO", "Inconclusive")
-# rownames(Table3) <- c(rep("1",6),rep("2",6),rep("3",6),rep("4",6),rep("5",6))
-# Table3
+# Combine subtables by rows
+combined_table <- rbind(subtable1, subtable2, subtable3, subtable4, subtable5)
+
+# Convert to data frame for better kable support
+combined_table <- as.data.frame(combined_table)
+
+kable(combined_table, format = "latex", align = "c", booktabs = TRUE,
+      col.names = c("True HR", "GO", "NO-GO", "Inconclusive")) %>%
+  kable_styling(full_width = FALSE, position = "center",
+                latex_options = c("hold_position","scale_down")) %>%
+  add_header_above(c("Reproduced Table 3" = 4)) %>%
+  group_rows("Subtable 1", 1, 6) %>%
+  group_rows("Subtable 2", 7, 12) %>%
+  group_rows("Subtable 3", 13, 18) %>%
+  group_rows("Subtable 4", 19, 24) %>%
+  group_rows("Subtable 5", 25, 30)
 @
 
-<<plots, echo = FALSE>>=
-
-#Plot 
-
-plot(t.d, pp.go1, type="l", xlab= "Hazard Ratio", ylab="Probability", 
-     main="n=70", col="green", ylim=c(0,1))
-lines(t.d, pp.ngo1, type="l", col="red")
-lines(t.d, pp.intd1, type="l", col="darkgoldenrod1")
-abline(h=0.1, lty=2)
-abline(h=0.8, lty=2)
-abline(v=0.8, lty=1)
-
-plot(t.d, pp.go2, type="l", xlab= "Hazard Ratio", ylab="Probability", 
-     main="n=52", col="green", ylim=c(0,1))
-lines(t.d, pp.ngo2, type="l", col="red")
-lines(t.d, pp.intd2, type="l", col="darkgoldenrod1")
-abline(h=0.1, lty=2)
-abline(h=0.8, lty=2)
-abline(v=0.8, lty=1)
-
-@
-
-
+\pagebreak
 \section{Example 2: A single-arm PoC design with binary data}
 Experimental drug in Chinese patients with non-small-cell lung cancer. \\
 Primary endpoint is objective response rate (ORR), which quantifies the preliminary efficacy of the experimental drug. \\
@@ -396,7 +380,6 @@ Table 4 results show that this dual-criterion design is a three-outcome design w
 
 \subsection{Reproduce Figure 2}
 <<Figure 2, echo=FALSE>>=
-
 
 @
 
