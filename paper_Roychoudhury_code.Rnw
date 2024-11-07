@@ -48,6 +48,13 @@ opts_chunk$set(fig.height = 4,
                warning = FALSE,
                message = FALSE
                )
+
+# Load necessary libraries
+library(ggplot2)
+library(cowplot)
+library(gridExtra)
+library(grid)
+library(kableExtra)
 @
 
 \begin{document}
@@ -82,9 +89,6 @@ Power is only increased for values superior to the DV since inferior values are 
 Decisions for dual-criterion design:
 \begin{center}
 <<plot1, echo=FALSE, fig=TRUE>>=
-# Load necessary libraries
-library(ggplot2)
-
 # Updated data based on visual inspection of the plot
 data <- data.frame(
   group = factor(c("(1) NO-GO", "(2) GO", "(3)Inconclusive", "(4)Inconclusive"), 
@@ -108,26 +112,27 @@ ggplot(data, aes(x = hazard_ratio, y = group)) +
   theme(panel.grid.minor = element_blank()) +
   annotate("text", x = 0.4, y = 4.5, label = "Treatment better", hjust = 0, color = "grey20") +
   annotate("text", x = 1.4, y = 4.5, label = "Treatment worse", hjust = 1, color = "grey20")
-
-#ggsave("Decisions.png", width = 8, height = 6, dpi = 300)
 @
 \end{center}
-%\begin{figure}[H]
-%\centering
-%\includegraphics[height=6.5cm, width=10cm]{Decisions.png}
-%\caption{Decisions for dual criterion design}
-%\end{figure}
+
 \item Precision design\\
 Doesn't rely on error rates. When null hypothesis or other benchmark values cannot be determined, this can be an option. It requires sufficiently precise effect estimate.\\
 Precision=$\frac{\text{TP}}{\text{TP}+\text{FP}}$. High Precision means that when the model predicts a positive outcome, it is very likely to be correct.
 \end{enumerate}
-Consider hazard function in survival analysis, it describes the risk of failing. We consider hazard ratio between experimental drug and control as the outcome of interest. Hazard ratio(HR) less than 1 means the drug is better than control. We want to reduce hazard and hazard ratio.\\
-\textbf{Sample size:}\\
+
+\subsection{Hazard ratio and log hazard ratio}
+Consider hazard function in survival analysis, it describes the risk of failing. We consider hazard ratio between experimental drug and control as the outcome of interest. Hazard ratio(HR) less than 1 means the drug is better than the control. We want to have smaller hazard and hazard ratio, so that the drug is more effective. \\
+In the paper, the log hazard ratio ($\log$ HR) is used instead of the hazard ratio. This could be because of the following reasons.\\
+Firstly, according to the Central Limit Theorem, as the sample size increases, the distribution of the estimator (the log HR) approaches a normal distribution. Also, the HR itself is a ratio of hazard rates and is positively skewed, meaning it doesn’t naturally fit a normal distribution. Taking the logarithm of the HR stabilizes its variance, transforming the skewed HR distribution into one that is more symmetric and closer to normal. Moreover, this approximate normality of $\log$ HR is useful in sample size calculation, which is discussed in the next session.
+
+\subsection{Sample size}
 Given the significance level $\alpha$, the null value (NV), and the decision value (DV), we can calculate the minimum sample size (for normally distributed data):
 \begin{equation*}
-n_{min}=\frac{\sigma^2 \times z_{\alpha}^2}{(\text{NV}-\text{DV})^2}
+n_{\text{min}}=\frac{\sigma^2 \times z_{\alpha}^2}{(\text{NV}-\text{DV})^2}
 \end{equation*}
-where $\sigma$ is the outcome standard deviation, and takes the value 2 under equal randomization for the standard normal approximation to time-to-event data. The $z_{\alpha}$ is the $100(1-\alpha)\%$ quantile of the standard normal distribution. It is the minimum sample size that implies statistical significance if the effect estimate equals the DV. This value is calculated under the situation that both criterion are just satisfied. As illustrated in the below graph, when the effect estimate $\theta=$ DV, and the lower bound of the confidence interval just touches the NV so that statistical significance is reached, we have the minimum sample size. Notice that when sample size equals the minimum sample size, there can only be GO or NO-GO decisions. 
+where $\sigma$ is the outcome standard deviation, and takes the value 2 under equal randomization for the standard normal approximation to time-to-event data. 
+%In the log scale, if we say the value is within $\pm 2$ about the truth, then this translates into a range of approximately $\pm 100 \time 2 \%$ about the truth on the original scale. 
+The $z_{\alpha}$ is the $100(1-\alpha)\%$ quantile of the standard normal distribution. The $n_{\text{min}}$ gives the minimum sample size that implies statistical significance if the effect estimate equals the DV. This value is calculated under the situation that both criterion are just satisfied. As illustrated in the below graph, when the effect estimate $\theta=$ DV, and the lower bound of the confidence interval just touches the NV so that statistical significance is reached, we have the minimum sample size. Notice that when sample size equals the minimum sample size, the width of the confidence interval $z_{\alpha}\sqrt{\frac{\sigma^2}{n_{\text{min}}}}$ equals NV-DV, so there will be no ``Inconclusive'' decisions. When the sample size is larger, the confidence interval becomes narrower, then an ``Inconclusive'' decision will occur.
 \begin{center}
 << Minimum sample size, echo=FALSE, results=hide, fig=TRUE>>=
 # Define x-axis range and labels
@@ -152,46 +157,43 @@ text(x=5, y=0.31, labels = "confidence interval", cex=1)
 @ 
 \end{center}
 
-\noindent \textbf{Operating characteristics:}\\
+\subsection{Operating characteristics}
 The operating characteristics are the type I error and power of the clinical trial design. \\
 For dual-criterion designs, the power at the DV is approximately 50\%, so that if the true parameter equals the DV, there is roughly equal chance that the effect estimate lies on either side of the DV. Having 50\% at the DV does not mean the study is under-powered.
 
-\subsection{Reproduce Figure 1}
-In Figure 1, the two plots illustrate the operating characteristics of dual-criterion designs with 309 and 420 events. The number 309 is the minimum sample size calcualted under the example conditions $\sigma=2$, $\alpha=2.5\%$, log hazard ratios NV = $\log(1)$, DV = $\log(0.8)$.
+\subsection{Reproduce Figure 1} \label{1.4}
+In Figure 1, the two plots illustrate the operating characteristics of dual-criterion designs with 309 and 420 events. The number 309 is the minimum sample size calcualted under the example conditions $\sigma=2$, $\alpha=2.5\%$, $\log$ hazard ratios NV = $\log(1)$, DV = $\log(0.8)$.
 \begin{equation*}
-n_{min}=\frac{2^2 \times z_{0.025}^2}{(\log{1}-\log{0.8})^2} = 308.594 \approx 309
+n_{\text{min}}=\frac{2^2 \times z_{0.025}^2}{(\log{1}-\log{0.8})^2} = 308.594 \approx 309
 \end{equation*}
-The probability of making a ``GO'' decision is the probability of the estimate smaller than the decision value and 
+The probability of making a ``GO'' decision is the probability of the estimate smaller than the DV (i.e. clinical relevance) while the NV is outside the confidence interval (i.e. statistical significance). The ``NO-GO'' decision is made when the estimate is larger than the DV, and the NV is inside the confidence interval. The ``Inconclusive'' decisions are made if neither ``GO'' nor ``NO-GO'' is satisfied. The probability of ``Inconclusive'' decision is hence 1 minus the probability of ``GO'' and ``NO-GO'' decisions. \\
+Below code presents the process of obtaining Figure 1 in the paper \citet{Roychoudhury2018}. An extra notice here is the calculation of the cutting value for statistical significance when the sample size is larger than $n_{\text{min}}$. As we mentioned earlier, when $n > n_{\text{min}}$, the confidence interval is shorter, so the cutting value \texttt{cut.ssig} of the ``NO-GO'' decision should be a value between DV and NV such that $z_{\alpha}\sqrt{\frac{\sigma^2}{n}} = \text{NV} - \texttt{cut.ssig}$. So in this case, the $\texttt{cut.ssig} = \log(1) - z_{\alpha}\sqrt{\frac{\sigma^2}{n}}$.
 \begin{center}
 <<Figure 1, fig=TRUE, results=hide>>=
-# Load necessary libraries
-library(ggplot2)
-library(cowplot)
-library(gridExtra)
-library(grid)
-
 # Sequence of true hazard ratios in log scale
 t.d <- log(seq(0.5, 1, 0.01))
 
 # Left panel (n = 309)
 n1 <- 309
-sd1 <- sqrt((2^2) / n1)
-cut.ssig1 <- log(0.8)
-cut.crel1 <- log(0.8)
-pp.go1 <- pnorm(cut.crel1, t.d, sd1)
-pp.ngo1 <- 1 - pnorm(cut.ssig1, t.d, sd1)
-pp.intd1 <- 1 - pp.go1 - pp.ngo1
-df1 <- data.frame(HazardRatio = exp(t.d), GO = pp.go1, NOGO = pp.ngo1, Inconclusive = pp.intd1)
+sd1 <- sqrt((2^2) / n1) # standard deviation
+cut.ssig1 <- log(0.8) # cutting point for statistical significance
+cut.crel1 <- log(0.8) # cutting point for clinical relevance
+pp.go1 <- pnorm(cut.crel1, t.d, sd1) # probability of GO decision
+pp.ngo1 <- 1 - pnorm(cut.ssig1, t.d, sd1) # probability of NO-GO decision
+pp.intd1 <- 1 - pp.go1 - pp.ngo1 # probability of inconclusive decision
+df1 <- data.frame(HazardRatio = exp(t.d), GO = pp.go1, 
+                  NOGO = pp.ngo1, Inconclusive = pp.intd1)
 
 # Right panel (n = 420)
 n2 <- 420
-sd2 <- sqrt((2^2) / n2)
-cut.ssig2 <- log(1) - qnorm(0.975) * sqrt(2^2 / 420)
-cut.crel2 <- log(0.8)
-pp.go2 <- pnorm(cut.crel2, t.d, sd2)
-pp.ngo2 <- 1 - pnorm(cut.ssig2, t.d, sd2)
-pp.intd2 <- 1 - pp.go2 - pp.ngo2
-df2 <- data.frame(HazardRatio = exp(t.d), GO = pp.go2, NOGO = pp.ngo2, Inconclusive = pp.intd2)
+sd2 <- sqrt((2^2) / n2) # standard deviation
+cut.ssig2 <- log(1) - qnorm(0.975) * sqrt(2^2 / 420) # statistical significance
+cut.crel2 <- log(0.8) # clinical relevance
+pp.go2 <- pnorm(cut.crel2, t.d, sd2) # probability of GO decision
+pp.ngo2 <- 1 - pnorm(cut.ssig2, t.d, sd2) # probability of NO-GO decision
+pp.intd2 <- 1 - pp.go2 - pp.ngo2 # probability of inconclusive decision
+df2 <- data.frame(HazardRatio = exp(t.d), GO = pp.go2, 
+                  NOGO = pp.ngo2, Inconclusive = pp.intd2)
 
 # Define the line colors and types
 line_colors <- c("GO" = "green3", "Inconclusive" = "darkgoldenrod2", "NO-GO" = "red3")
@@ -273,21 +275,23 @@ So the dual-criterion is:
 \item Clinical relevance: estimated HR from Cox regression $\leq 0.70$.
 \end{enumerate}
 \subsection{Reproduce Table 3}
-Attempt to reproduce the values in Table 3. The main problem is to find the correct value for $\sigma$. There seem to be no detailed information about the choice of value for $\sigma$. We chose it to be 2 according to page 455 in the paper. \\
-Also, the calculation of $\hat{\theta} = 0.736, 0.708, 0.659, 0.761$ should be looked into when the correct $\sigma$ is decided. The current understanding is that these values are calculated when the estimate $\hat{\theta} > \text{DV}$ and the confidence interval just touches 1, i.e. NO-GO is implied.
+Here we attempt to reproduce the values in Table 3. \\
+For the first sub-table, similar to Section \ref{1.4}, when $n > n_{\text{min}}$, the cutting value $\hat{\theta}$ (\texttt{cut.ssig}) of the ``NO-GO'' decision is given by $\texttt{cut.ssig} = \log(1) - z_{\alpha}\sqrt{\frac{\sigma^2}{n}}$. These correspond to $\hat{\theta} > 0.736 \neq 0.7$ from the paper. \\
+For the second sub-table, $n = n_{\text{min}}$.\\
+For the third sub-table, it requires one-sided type I error of 0.1 and power of 0.9 for HR=0.5. So the cutting value for clinical relevance is chosen to satisfy these requirements. One thing to be answered is why the authors used 0.901 as the power for HR=0.5, rather than 0.9.\\
+For the forth sub-table, it requires one-sided type I error of 0.1 and power of 0.8 for HR=0.5. The sample size $n=38 < n_{\text{min}}$. The cutting value of the decisions are calculated in a similar way as in Section \ref{1.4}. One thing to be answered here is that the current calculation returns the same values in the table, but the $\hat{\theta}$ is slightly different from 0.659 as claimed in the paper. Also, the power at HR=0.5 is 0.804, rather than 0.8. \\
+For sub-table five, it used a type I error of 0.2 and a power of 0.9, with sample size $n=38 < n_{\text{min}}$. The cutting value of the decisions are calculated in a similar way as in Section \ref{1.4}. However the question to be answered is the same with that in sub-table 4.
 << Table 3, echo = TRUE, results=tex >>=
-library(kableExtra)
-n.min <- (4*qnorm(0.9)^2)/(log(1)-log(0.7))^2
+# minimum sample size
+n.min <- ceiling((4*qnorm(0.9)^2)/(log(1)-log(0.7))^2) # n.min = 52
 
-# a sequence of true HR.
+# a sequence of true log(HR).
 t.d <- log(seq(0.5, 1, 0.1))
 
-# Dual-criterion design: alpha=0.1, DV=0.7, n=70
+# Dual-criterion design: alpha=0.1, DV=log(0.7), n=70
 n1 <- 70
-sd1 <- sqrt((2^2)/n1) #sigma assumed to be 2?
-#sqrt((1.723522^2)/n1)
-# cut.ssig <- 0-qnorm(0.9)* sqrt(2^2 / 70)
-cut.ssig <- log(exp(0-qnorm(0.9)* sqrt(2^2 / n1))) # statistical significance NV=1
+sd1 <- sqrt((2^2)/n1) # standard deviation
+cut.ssig <- log(1)-qnorm(0.9)* sqrt(2^2 / n1) # statistical significance
 cut.crel <- log(0.7) # critical relevance
 pp.go1 <- pnorm(cut.crel, t.d, sd1)
 pp.ngo1 <- 1- pnorm(cut.ssig, t.d, sd1)
@@ -309,10 +313,8 @@ subtable2 <- matrix(data=round(c(exp(t.d), pp.go2,pp.ngo2,pp.intd2),3), ncol=4)
 # Dual-criterion design: alpha=0.1, beta=0.1, n=55
 n3 <- 55
 sd3 <- sqrt((2^2)/n3)
-cut.ssig <- log(0.708)
-cut.crel <- log(0.708)
-cut.ssig <- qnorm(0.9,log(0.5),sd3) # different from 0.708
-cut.crel <- qnorm(0.9,log(0.5),sd3)
+cut.ssig <- qnorm(0.901,log(0.5),sd3) # reason for using 0.901 rather than 0.9?
+cut.crel <- qnorm(0.901,log(0.5),sd3)
 pp.go3 <- pnorm(cut.crel, t.d, sd3)
 pp.ngo3 <- 1-pnorm(cut.ssig, t.d, sd3)
 pp.intd3 <- 1 -pp.go3 - pp.ngo3
@@ -322,8 +324,8 @@ subtable3 <- matrix(data=round(c(exp(t.d), pp.go3,pp.ngo3,pp.intd3),3), ncol=4)
 # Dual-criterion design: alpha=0.1, beta=0.2, n=38
 n4 <- 38
 sd4 <- sqrt((2^2)/n4)
-cut.ssig <- log(exp(0-qnorm(0.9)* sqrt(2^2 / n4))) # different from 0.659
-cut.crel <- log(exp(0-qnorm(0.9)* sqrt(2^2 / n4)))
+cut.ssig <- log(1)-qnorm(0.9)* sqrt(2^2 / n4) # different from 0.659
+cut.crel <- log(1)-qnorm(0.9)* sqrt(2^2 / n4)
 pp.go4 <- pnorm(cut.crel, t.d, sd4)
 pp.ngo4 <- 1-pnorm(cut.ssig, t.d, sd4)
 pp.intd4 <- 1 -pp.go4 - pp.ngo4
@@ -333,9 +335,9 @@ subtable4 <- matrix(data=round(c(exp(t.d), pp.go4,pp.ngo4,pp.intd4),3), ncol=4)
 # Dual-criterion design: alpha=0.2, beta=0.1, n=38
 n5 <- 38
 sd5 <- sqrt((2^2)/n5)
-cut.ssig <- log(exp(0-qnorm(0.8)* sqrt(2^2 / n5))) 
+cut.ssig <- log(1)-qnorm(0.8)* sqrt(2^2 / n5)
 # How is the power guaranteed to be 0.1? This is only using alpha=0.2.
-cut.crel <- log(exp(0-qnorm(0.8)* sqrt(2^2 / n5)))
+cut.crel <- log(1)-qnorm(0.8)* sqrt(2^2 / n5)
 pp.go5 <- pnorm(cut.crel, t.d, sd5)
 pp.ngo5 <- 1-pnorm(cut.ssig, t.d, sd5)
 pp.intd5 <- 1 -pp.go5 - pp.ngo5
