@@ -486,6 +486,7 @@ plot( 1:(n.min+15), post.crit[1:(n.min+15)], type="p", xaxs="i", xlab="n",
   abline(h=p.positive, lty=2)
   abline(v=n.min, lty=3)
   text(1.05*n.min, 0.6, paste("n.min=",n.min, sep=''),adj=0)
+  text(30, 0.8, paste("a=",round(a,4)))
   
   return(list(ss.table=ss.table,n.min=n.min))}
 
@@ -527,6 +528,7 @@ nM <-  SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95,
                       dec.value = 0.175, a = alpha_result, b=1,
                       post.est = "median")
 nM$n.min # is still 22
+
 @
 \end{center}
 Additionally, we explore how the minimum sample size changes according to different values of $\alpha$. The below plot gives the relationship between them.
@@ -534,19 +536,22 @@ Additionally, we explore how the minimum sample size changes according to differ
 <<prior_sample_size2, fig.show='asis', echo=FALSE>>=
 # Next plot the minimum sample size VS alpha
 
-alpha_vector <- seq(0.005,1,0.005)
+# alpha_vector <- seq(0.1,1,0.1)
 # n_min_vector <- rep(0, length(alpha_vector))
+# par(mfrow=c(1,1))
 # for (i in 1:length(alpha_vector)){
 #   a <- alpha_vector[i]
-#   n <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, 
+#   n <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95,
 #                       dec.value = 0.175, a = a, b=1,
 #                       post.est = "median")
 #   n_min_vector[i] <- n$n.min[[1]]
 # }
 # n_min_vector
-
+# 
+# 
+alpha_vector <- seq(0.005,1,0.005)
 n_min_vector_stored <- c(21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
-                         22,22,22,22,22,22,22,22,22,22,22,22,22,22,22, 
+                         22,22,22,22,22,22,22,22,22,22,22,22,22,22,22,
                          22,22,22,22,22,22,22,22,22,22,22,22,22,22,22,
                          22,22,22,22,22,22,22,22,22,17,17,17,23,23,23,
                          23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,
@@ -554,7 +559,7 @@ n_min_vector_stored <- c(21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
                          18,18,18,18,18,18,18,18,18,18,24,24,24,24,24,
                          24,24,24,24,24,18,18,18,18,18,18,18,18,18,18,
                          18,18,18,18,18,18,18,18,18,18,19,19,19,19,19,
-                         19,19,19,19,19,19,19,19,19,19,19,19,19,19,19, 
+                         19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,
                          19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,
                          19,19,19,19,19,19,19,20,20,20,20,20,20,20,20,
                          20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,
@@ -673,6 +678,28 @@ kable(subtable_3, format = "latex", booktabs = TRUE, escape = FALSE,
 @
 \pagebreak
 %% References
+\appendix
+
+<<appendix1, fig.width=5, echo=TRUE, results='hide'>>=
+n1 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = 0.1, b=1, post.est = "median")
+n2 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = 0.2, b=1, post.est = "median")
+n3 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = 0.3, b=1, post.est = "median")
+n4 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = 0.4, b=1, post.est = "median")
+n5 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = 0.5, b=1, post.est = "median")
+n6 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = 0.6, b=1, post.est = "median")
+n7 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = 0.7, b=1, post.est = "median")
+n8 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = 0.8, b=1, post.est = "median")
+n9 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = 0.9, b=1, post.est = "median")
+@
 \bibliographystyle{apalike}
 \bibliography{bibliography}
 
