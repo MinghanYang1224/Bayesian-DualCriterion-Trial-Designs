@@ -460,18 +460,18 @@ SS_DC_BayesBin <- function(
   if (any(find.n[,3]==1) ) {
     n.okay = find.n[find.n[,3]==1,,drop=FALSE] # take all the rows with all.next.okay==1
     n.min = n.okay[nrow(n.okay),4] # take the n in the last row (find minimum n)
-    n.min.10 = n.min+15
+    n.min.15 = n.min+15
     est=round(est,3)
-    ss.table = data.frame( n=n[1:n.min.10], 
+    ss.table = data.frame( n=n[1:n.min.15], 
                            # sample size from 1 to n.min+10
-                           r=rr[1:n.min.10], 
+                           r=rr[1:n.min.15], 
                            # number of responders needed for DV criterion
-                           p.obs=p.obs[1:n.min.10], 
-                           est = est[1:n.min.10], 
+                           p.obs=p.obs[1:n.min.15], 
+                           est = est[1:n.min.15], 
                            # posterior estimate of median (by default)
-                           post.p.positive=post.crit[1:n.min.10], 
+                           post.p.positive=post.crit[1:n.min.15], 
                            # posterior probability of a positive effect
-                           okay=post.crit.index[1:n.min.10]
+                           okay=post.crit.index[1:n.min.15]
                            # TRUE if statistical significance is satisfied
                            )}
 
@@ -531,41 +531,52 @@ nM$n.min # is still 22
 
 @
 \end{center}
-Additionally, we explore how the minimum sample size changes according to different values of $\alpha$. The below plot gives the relationship between them.
-\begin{center}
-<<prior_sample_size2, fig.show='asis', echo=FALSE>>=
-# Next plot the minimum sample size VS alpha
-
-# alpha_vector <- seq(0.1,1,0.1)
-# n_min_vector <- rep(0, length(alpha_vector))
-# par(mfrow=c(1,1))
-# for (i in 1:length(alpha_vector)){
-#   a <- alpha_vector[i]
-#   n <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95,
-#                       dec.value = 0.175, a = a, b=1,
-#                       post.est = "median")
-#   n_min_vector[i] <- n$n.min[[1]]
-# }
-# n_min_vector
-# 
-# 
+Additionally, we explore how the minimum sample size changes according to different values of $a$ in the Beta($a,b$) prior. The below plots give the relationship between the minimal sample size and the choices of $a$, with the median and mean being the posterior estimate, respectively. We can see from the plots that there are jumps of minimal sample sizes around some values of $a$, especially in the first plot. When the posterior estimate is the mean (the second plot), the jumping pattern only seem to occur for $a$ values closer to 1. This might suggest that the posterior mean gives more stability and less sensitivity of minimal sample size with respect to prior choices. For both cases, we obtain the values of $a$ at these jumping points and included relevant plots in the Appendix. 
+<<prior_sample_size2, echo=TRUE, cache=TRUE, results='hide', fig.show='hide'>>=
+# Next plot the minimum sample size VS a (in Beta prior)
 alpha_vector <- seq(0.005,1,0.005)
-n_min_vector_stored <- c(21,21,21,21,21,21,21,21,21,21,21,21,21,21,21,
-                         22,22,22,22,22,22,22,22,22,22,22,22,22,22,22,
-                         22,22,22,22,22,22,22,22,22,22,22,22,22,22,22,
-                         22,22,22,22,22,22,22,22,22,17,17,17,23,23,23,
-                         23,23,23,23,23,23,23,23,23,23,23,23,23,23,23,
-                         23,23,23,23,23,23,23,17,17,17,17,17,18,18,18,
-                         18,18,18,18,18,18,18,18,18,18,24,24,24,24,24,
-                         24,24,24,24,24,18,18,18,18,18,18,18,18,18,18,
-                         18,18,18,18,18,18,18,18,18,18,19,19,19,19,19,
-                         19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,
-                         19,19,19,19,19,19,19,19,19,19,19,19,19,19,19,
-                         19,19,19,19,19,19,19,20,20,20,20,20,20,20,20,
-                         20,20,20,20,20,20,20,20,20,20,20,20,20,20,20,
-                         20,20,20,20,20)
-plot(alpha_vector,n_min_vector_stored, type="l",
-     xlab="alpha", ylab="n_min", las=1)
+
+# posterior median
+n_min_vector_median <- rep(0, length(alpha_vector))
+for (i in 1:length(alpha_vector)){
+  a <- alpha_vector[i]
+  n <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95,
+                      dec.value = 0.175, a = a, b=1,
+                      post.est = "median")
+  n_min_vector_median[i] <- n$n.min[[1]]
+}
+
+# posterior mean
+n_min_vector_mean <- rep(0, length(alpha_vector))
+for (i in 1:length(alpha_vector)){
+  a <- alpha_vector[i]
+  n <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95,
+                      dec.value = 0.175, a = a, b=1,
+                      post.est = "mean")
+  n_min_vector_mean[i] <- n$n.min[[1]]
+}
+@
+\begin{center}
+<<prior_sample_size3, fig.show='asis'>>=
+plot(alpha_vector,n_min_vector_median, type="l",
+     xlab="alpha", ylab="n_min", las=1, main = "Posterior median")
+plot(alpha_vector,n_min_vector_mean, type="l",
+     xlab="alpha", ylab="n_min", las=1, main = "Posterior mean")
+# alpha_vector <- seq(0.005,1,0.005)
+# n_min_vector_stored <- c(21,21,21,21,21,21,21,21,21,21,21,21,21,21,21, 1
+#                          22,22,22,22,22,22,22,22,22,22,22,22,22,22,22, 2
+#                          22,22,22,22,22,22,22,22,22,22,22,22,22,22,22, 3
+#                          22,22,22,22,22,22,22,22,22,17,17,17,23,23,23, 4
+#                          23,23,23,23,23,23,23,23,23,23,23,23,23,23,23, 5
+#                          23,23,23,23,23,23,23,17,17,17,17,17,18,18,18, 6
+#                          18,18,18,18,18,18,18,18,18,18,24,24,24,24,24, 7
+#                          24,24,24,24,24,18,18,18,18,18,18,18,18,18,18, 8
+#                          18,18,18,18,18,18,18,18,18,18,19,19,19,19,19, 9
+#                          19,19,19,19,19,19,19,19,19,19,19,19,19,19,19, 10
+#                          19,19,19,19,19,19,19,19,19,19,19,19,19,19,19, 11
+#                          19,19,19,19,19,19,19,20,20,20,20,20,20,20,20, 12
+#                          20,20,20,20,20,20,20,20,20,20,20,20,20,20,20, 13
+#                          20,20,20,20,20)
 @
 \end{center}
 
@@ -676,30 +687,82 @@ kable(subtable_3, format = "latex", booktabs = TRUE, escape = FALSE,
   kable_styling(latex_options = c("hold_position", "striped")) %>%
   cat()
 @
+
 \pagebreak
 %% References
 \appendix
+\section*{Appendix}
+\begin{center}
+Posterior median
+<<appendix1, fig.width=10, echo=TRUE, results='hide'>>=
+# First get the values of a in Beta prior where the jumps in minimal sample size occurs.
+(a_vector <- alpha_vector[c(54,55,57,58,82,83,87,88, 100, 101, 110, 111, 172,173)])
 
-<<appendix1, fig.width=5, echo=TRUE, results='hide'>>=
+par(mfrow=c(1,2))
 n1 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
-               a = 0.1, b=1, post.est = "median")
+               a = a_vector[1], b=1, post.est = "median")
 n2 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
-               a = 0.2, b=1, post.est = "median")
+               a = a_vector[2], b=1, post.est = "median")
+
 n3 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
-               a = 0.3, b=1, post.est = "median")
+               a = a_vector[3], b=1, post.est = "median")
 n4 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
-               a = 0.4, b=1, post.est = "median")
+               a = a_vector[4], b=1, post.est = "median")
+
 n5 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
-               a = 0.5, b=1, post.est = "median")
+               a = a_vector[5], b=1, post.est = "median")
 n6 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
-               a = 0.6, b=1, post.est = "median")
+               a = a_vector[6], b=1, post.est = "median")
+
 n7 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
-               a = 0.7, b=1, post.est = "median")
+               a = a_vector[7], b=1, post.est = "median")
 n8 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
-               a = 0.8, b=1, post.est = "median")
+               a = a_vector[8], b=1, post.est = "median")
+
 n9 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
-               a = 0.9, b=1, post.est = "median")
+               a = a_vector[9], b=1, post.est = "median")
+n10 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[10], b=1, post.est = "median")
+
+n11 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[11], b=1, post.est = "median")
+n12 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[12], b=1, post.est = "median")
+
+n13 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[13], b=1, post.est = "median")
+n14 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[14], b=1, post.est = "median")
 @
+\end{center}
+
+\begin{center}
+Posterior mean
+<<appendix2, fig.width=10, echo=TRUE, results='hide'>>=
+par(mfrow=c(1,2))
+a_vector_mean <- alpha_vector[c(164,165,175,176,191,192)]
+n1 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector_mean[1], b=1, post.est = "mean")
+n2 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector_mean[2], b=1, post.est = "mean")
+
+n3 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector_mean[3], b=1, post.est = "mean")
+n4 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector_mean[4], b=1, post.est = "mean")
+
+n5 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector_mean[5], b=1, post.est = "mean")
+n6 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector_mean[6], b=1, post.est = "mean")
+@
+\end{center}
+<<appendix3, echo=FALSE, results='asis', eval=FALSE>>=
+kable(n6$ss.table, caption = paste("a=0.6, n min =",n6$n.min))
+kable(n8$ss.table, caption = paste("a=0.8, n min =",n8$n.min))
+kable(n9$ss.table, caption = paste("a=0.9, n min =",n9$n.min))
+@
+
 \bibliographystyle{apalike}
 \bibliography{bibliography}
 
