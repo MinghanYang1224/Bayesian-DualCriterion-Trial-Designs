@@ -1,0 +1,1299 @@
+\documentclass[a4paper, 11pt]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{amsmath, amssymb} % math
+\usepackage[round]{natbib} % bibliography
+\usepackage[dvipsnames,table]{xcolor} % colors
+\usepackage[onehalfspacing]{setspace} % more space
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage[labelformat = empty]{caption}
+\usepackage{xcolor}
+\include{newCommands}
+
+%% margins
+% \usepackage{geometry}
+% \geometry{
+%   a4paper,
+%   total={170mm,257mm},
+%   left=20mm,
+%   right=20mm,
+%   top=30mm,
+%   bottom=30mm,
+% }
+
+\newcommand\mail{yangmi@ethz.ch}
+\title{\textbf{Exploration on Bayesian Group Sequential Designs}}
+\author{Minghan Yang}
+\date{April 2025}
+
+\usepackage{hyperref}
+\hypersetup{
+  bookmarksopen=true, 
+  breaklinks=true,
+  pdfsubject={},
+  pdfkeywords={},
+  colorlinks=true,
+  linkcolor=black,
+  anchorcolor=black,
+  citecolor=blue,
+  urlcolor=blue,
+}
+
+<< "main-setup", echo = FALSE, warning=FALSE>>=
+## setting knitr options (see https://yihui.org/knitr/ for all the options)
+library(knitr)
+opts_knit$set(concordance = FALSE)
+opts_chunk$set(fig.height = 4,
+               echo = FALSE,
+               warning = FALSE,
+               message = FALSE
+               )
+
+# Load necessary libraries
+library(ggplot2)
+library(cowplot)
+library(gridExtra)
+library(grid)
+library(kableExtra)
+library(latex2exp)
+@
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\begin{abstract}
+This report will focus on exploration of the paper ``A practical guide to Bayesian group sequential designs'' \citet{Gsponer}, and look at applications to paper ``Beyond p-values: A phase II dual-criterion design with statistical significance and clinical relevance'' \citet{Roychoudhury2018}.
+\end{abstract}
+
+\section{Background Knowledge}
+\subsection{Dual Criteria Design}
+%\begin{itemize}
+%\item Statistical significance: The one-sided p-value must be less than $\alpha$. \item Clinical relevance: 
+%\end{itemize}
+By considering both the statistical significance and the clinical relevance criterion, we have both significant and sufficiently large effect estimate.\\
+Required inputs: type I error control (null hypothesis (with null value ND) and type I error $\alpha$) and a decision value (DV). The DV is the ``target difference''. It is the minimal effect estimate needed for trail success (if higher than this value with moderate confidence, then a ``GO'' decision is made).\\
+The dual-criterion is more demanding, the resulting power of study is less than that of a standard design.\\
+For example, decisions for dual-criterion design when hazard ratio is the primary endpoint:
+\begin{center}
+<<plot1, echo=FALSE>>=
+# Updated data based on visual inspection of the plot
+data <- data.frame(
+  group = factor(c("(1) NO-GO", "(2) GO", "(3)Inconclusive", "(4)Inconclusive"), 
+                 levels = c("(4)Inconclusive", "(3)Inconclusive", 
+                            "(2) GO","(1) NO-GO")),
+  hazard_ratio = c(0.85, 0.6, 0.8, 0.65),     # Hazard ratio estimates for each case
+  lower_ci = c(0.55, 0.25, 0.65, 0.25),         # Lower bounds of CIs
+  upper_ci = c(1.15, 0.95, 0.95, 1.05)          # Upper bounds of CIs
+)
+
+# Plot setup
+ggplot(data, aes(x = hazard_ratio, y = group)) +
+  geom_point(shape = 18, size = 3) +   # Diamond marker for hazard ratios
+  geom_errorbarh(aes(xmin = lower_ci, xmax = upper_ci), height = 0.2) + # Error bars for CIs
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey50") +  # Line for HR=1
+  geom_vline(xintercept = 0.7, linetype = "dashed", color = "grey50") + # Line for DV (assumed to be 0.7)
+  annotate("text", x = 0.7, y = 0, label = "DV", vjust = -1, color = "red",fontface = "bold", size = 5) + # Label for DV
+  annotate("text", x = 1.02, y = 0, label = "NV", vjust = -1, color = "red",fontface = "bold", size = 5) +   # Label for HR=1
+  labs(x = "Hazard ratio", y = "") +
+  scale_x_continuous(breaks = NULL, limits = c(0.2, 1.5)) +
+  theme_minimal(base_size = 14) +
+  theme(panel.grid.minor = element_blank()) +
+  annotate("text", x = 0.4, y = 4.5, label = "Treatment better", hjust = 0, color = "grey20") +
+  annotate("text", x = 1.4, y = 4.5, label = "Treatment worse", hjust = 1, color = "grey20")
+@
+\end{center}
+\textbf{Sample size calculation in dual criterion design}\\
+Given the significance level $\alpha$, the null value (NV) and the decision value (DV), we can calculate the minimum sample size (for normally distributed data).
+\begin{equation*}
+n_{\text{min}}=\frac{\sigma^2 \times z_{\alpha}^2}{(\text{NV}-\text{DV})^2}
+\end{equation*}
+where $\sigma$ is the outcome standard deviation, and takes the value 2 under equal randomization for the standard normal approximation to time-to-event data. 
+%In the log scale, if we say the value is within $\pm 2$ about the truth, then this translates into a range of approximately $\pm 100 \time 2 \%$ about the truth on the original scale. 
+$z_{\alpha}$ is the $100(1-\alpha)\%$ quantile of the standard normal distribution. $n_{\text{min}}$ gives the minimum sample size that implies statistical significance if the effect estimate equals the DV. This value is calculated under the situation that both criterion are just satisfied. As illustrated in the below graph, when the effect estimate $\theta=$ DV, and the lower bound of the confidence interval just touches the NV so that statistical significance is reached, we have the minimum sample size. Notice that when sample size equals the minimum sample size, the half-width of the confidence interval $z_{\alpha}\sqrt{\frac{\sigma^2}{n_{\text{min}}}}$ equals NV-DV, so there will be no ``Inconclusive'' decisions. When the sample size is larger, the confidence interval becomes narrower, then an ``Inconclusive'' decision will occur.
+\subsection{Group Sequential Designs}
+``Group sequential'' means that the data analysis is conducted in interim analyses after every successive group of $2n$ patients. Fixing a maximum number of N groups, a trial is stopped at interim if the (two-sided) p-value is smaller than a pre-specified nominal significance level $\alpha$, or if N groups of patients have been recruited. The nominal significance level $\hat{\alpha}$ depends on the Type I error rate $\alpha$ and the number of groups N. Standard adjustments for multiple testing are too conservative, since tests are based on accumulating data with a specific dependence structure. \\
+The commonly used stopping criteria for success and futility in Bayesian group sequential designs are related to treatment effect size and superior efficacy against placebo. They are often based on the posterior distribution of treatment effect at interim analyses. The Bayesian group sequential methods are designed to provide stopping criteria for related to subsequent decision making. \\
+The operational characteristics of interest are probability to stop for success, to stop for futility, or to continue for each interim analysis and the final analysis, as well as corresponding cumulative probabilities. Also, the expected sample size is another characteristic to quantify the gain of group sequential design. 
+
+\subsection{Futility}
+Futility refers to stopping a clinical trial early if interim results suggest that the treatment is unlikely to demonstrate a meaningful benefit by the end of the study. This helps to conserve resources, reduce unnecessary exposure to ineffective treatments, and allow quicker redirection of efforts to more promising therapies.
+%There are two main types of futility stopping rules:
+%	1.	Conditional Power-Based Futility – Stops the trial if the probability of achieving %statistical significance at the final analysis, given the interim data, is too low.
+%	2.	Bounded Inferiority-Based Futility – Stops if the treatment effect is trending toward %being clinically insignificant or worse than the control.
+\subsection{Interim analysis}
+[to be added when we explore interim analysis]
+
+\subsection{Mathematical Derivation of Bayesian Posterior Parameters} \label{Bayes}
+We assume a normal prior distribution for the treatment effect \( \delta \): 
+$\delta \sim N(\delta_0, \sigma_0^2)$, and a normal likelihood from observed data \( D_i \):
+$D_i \sim N(\delta, V_i)$, where \( \delta_0 \) and \( \sigma_0^2 \) are the prior mean and variance, and \( V_i \) is the variance of the observed treatment effect.\\
+Using Bayes' theorem:
+$P(\delta \given D_i) \propto P(D_i \given \delta) P(\delta)$.\\
+Expanding both normal densities in the exponent:
+\begin{align*}
+P(\delta \given D_i) &\propto \exp \left( -\frac{1}{2} \left[ \frac{(\delta - \delta_0)^2}{\sigma_0^2} + \frac{(D_i - \delta)^2}{V_i} \right] \right) \\
+&\propto \exp \left( -\frac{1}{2} \left[ \left( \frac{1}{\sigma_0^2} + \frac{1}{V_i} \right) \delta^2 - 2 \left( \frac{\delta_0}{\sigma_0^2} + \frac{D_i}{V_i} \right) \delta \right] \right)
+\end{align*}
+Since a normal distribution has the general form:
+$$\exp \left( -\frac{1}{2} \frac{(\delta - \mu_{\text{posterior}})^2}{\sigma_{\text{posterior}}^2} \right)=
+\exp \left( -\frac{1}{2} \left[ \frac{1}{\sigma_{\text{posterior}}^2} \delta^2 - 2 \frac{\mu_{\text{posterior}}}{\sigma_{\text{posterior}}^2} \delta + C \right] \right),$$
+comparing terms, the posterior mean and variance are:
+$$\mu_{\text{posterior}} = \frac{\frac{\delta_0}{\sigma_0^2} + \frac{D_i}{V_i}}{\frac{1}{\sigma_0^2} + \frac{1}{V_i}}, \quad \quad \sigma_{\text{posterior}}^2 = \frac{1}{\frac{1}{\sigma_0^2} + \frac{1}{V_i}}.$$
+This formula shows that the inverse variance (precision) of the posterior is the sum of the prior and data precisions. The posterior variance always smaller than either the prior or the likelihood variance.
+
+\section{Methods}
+\subsection{Effect and probability thresholds}
+Traditionally, for treatment effect $\delta$, null hypothesis is $\delta \leq 0$, and alternative is $\delta > 0$. \\
+Given type I error rate $\alpha$, power $1-\beta$, treatment effect size $\delta_1$ (minimal clinically relevant effect), in a standard two-group normal case with known standard deviation, the null will be rejected if observed average treatment effect $\hat{\delta}$ exceeds threshold $D_T=z_{1-\alpha} \cdot \frac{\delta_1}{z_{1-\alpha} + z_{1-\beta}}$. 
+\begin{quote}
+Deduce this $D_T$:
+The null hypothesis is rejected when \( \hat{\delta} \) exceeds a threshold \( D_T \), so:
+$P(\hat{\delta} > D_T \given \delta = 0) = \alpha$. Standardizing:
+$P\left(Z > \frac{D_T}{\sigma/\sqrt{n}} \given \delta = 0 \right) = \alpha$,
+which implies:
+$\frac{D_T}{\sigma/\sqrt{n}} = z_{1-\alpha}$.
+Thus, $D_T = z_{1-\alpha} \cdot \frac{\sigma}{\sqrt{n}}$ (1).\\
+For the power condition (type II error control),
+$P(\hat{\delta} > D_T \given \delta = \delta_1) = 1 - \beta$,
+which gives:
+$\frac{D_T - \delta_1}{\sigma/\sqrt{n}} = -z_{1-\beta}$. Rearranging, $D_T = \delta_1 - z_{1-\beta} \cdot \frac{\sigma}{\sqrt{n}}$ (2).\\
+Equating (1) and (2), we get 
+$\frac{\sigma}{\sqrt{n}} = \frac{\delta_1}{z_{1-\alpha} + z_{1-\beta}}$.\\
+Substituting into the expression for \( D_T \):
+$D_T = z_{1-\alpha} \cdot \frac{\delta_1}{z_{1-\alpha} + z_{1-\beta}}$. $\square$
+\end{quote}
+This threshold is typically smaller than $\delta_1$, so the null can be rejected for effect sizes that are not seen as clinically relevant.\\
+To avoid situations where a statistically significant result is obtained with a small treatment effect, the double criterion is required to measure the success for clinical trials. \\
+From Bayesian perspective, we base on posterior probabilities, and the success criteria are
+\begin{enumerate}
+\item $\mathbb{P}(\delta > s_1 \given \text{Data}) > p_1$,
+\item $\mathbb{P}(\delta > s_2 \given \text{Data}) > p_2$,
+\end{enumerate}
+where $s_1, s_2$ are some effect thresholds, and $p_1, p_2$ are some probability thresholds.\\ 
+Suppose posterior is normally distributed $\delta \sim \Nor(\mathbb{E}(\delta \given \text{Data}), \text{Sd}(\delta \given \text{Data}))$, then with minimal precision satisfying the double criteria, we have
+$$\mathbb{E}(\delta \given \text{Data}) = \frac{s_1 z_{1-p_2} - s_2 z_{1-p_1}}{z_{1-p_2}-z_{1-p_1}}, \quad \text{Sd}(\delta \given \text{Data})=\frac{s_2-s_1}{z_{1-p_2}-z_{1-p_1}}.$$
+\begin{quote}
+\textbf{Derivation:}
+The minimal precision means the maximal variance / widest confidence interval when the two criteria are just met. For larger precision, it may happen that one of the two criteria not satisfied. As shown in the below figure, the confidence interval in case (1) is too wide that the first criterion is not met. When at minimal precision (case (2)), two criteria are just met.
+\begin{center}
+<<minimal precision>>=
+data <- data.frame(
+  group = factor(c("(1) smaller precision than minimal", 
+                   "(2) minimal precision", 
+                   "(3) bigger precision than minimal"), 
+                 levels = c("(3) bigger precision than minimal", 
+                            "(2) minimal precision",
+                            "(1) smaller precision than minimal")),
+  s = c(1, 1, 1),     # Hazard ratio estimates for each case
+  lower_ci = c(0.6, 0.7, 0.85),         # Lower bounds of CIs
+  upper_ci = c(1.4, 1.3, 1.15)          # Upper bounds of CIs
+)
+
+# Plot setup
+ggplot(data, aes(x = s, y = group)) +
+  geom_point(shape = 18, size = 3) +   # Diamond marker for hazard ratios
+  geom_errorbarh(aes(xmin = lower_ci, xmax = upper_ci), height = 0.2) + # Error bars for CIs
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey50") +  # Line for HR=1
+  geom_vline(xintercept = 0.7, linetype = "dashed", color = "grey50") + # Line for DV (assumed to be 0.7)
+  annotate("text", x = 0.7, y = 0, label = "s1", vjust = -1, color = "red",fontface = "bold", size = 5) + 
+  annotate("text", x = 1.02, y = 0, label = "s2", vjust = -1, color = "red",fontface = "bold", size = 5) +   
+  labs(x = "effect thresholds", y = "") +
+  scale_x_continuous(breaks = NULL, limits = c(0.2, 1.5)) +
+  theme_minimal(base_size = 14) +
+  theme(panel.grid.minor = element_blank()) +
+  annotate("text", x = 0.4, y = 3.5, label = "Treatment worse", hjust = 0, color = "grey20") +
+  annotate("text", x = 1.4, y = 3.5, label = "Treatment better", hjust = 1, color = "grey20")
+@
+\end{center}
+
+With the mean $\mathbb{E}(\delta \given \text{Data}) $ and standard deviation $\text{Sd}(\delta \given \text{Data})$, when the two criteria are just met:
+\begin{align*}
+    \mathbb{P}(\delta > s_1) &= 1 - \Phi\left(\frac{s_1 - \mathbb{E}(\delta \given \text{Data})}{\text{Sd}(\delta \given \text{Data})}\right) = p_1, \\
+    \mathbb{P}(\delta > s_2) &= 1 - \Phi\left(\frac{s_2 - \mathbb{E}(\delta \given \text{Data})}{\text{Sd}(\delta \given \text{Data})}\right) = p_2.
+\end{align*}
+Because cdf is increasing:
+\begin{align*}
+    \frac{s_1 - \mathbb{E}(\delta \given \text{Data})}{\text{Sd}(\delta \given \text{Data})} &= z_{1 - p_1}, \\
+    \frac{s_2 - \mathbb{E}(\delta \given \text{Data})}{\text{Sd}(\delta \given \text{Data})} &= z_{1 - p_2},
+\end{align*}
+Solving for expectation and standard deviatioin, 
+$$
+\mathbb{E}(\delta \given \text{Data}) = \frac{s_1 z_{1 - p_2} - s_2 z_{1 - p_1}}{z_{1 - p_2} - z_{1 - p_1}},$$
+$$\text{Sd}(\delta \given \text{Data}) = \frac{s_2 - s_1}{z_{1 - p_2} - z_{1 - p_1}}. \quad \square$$
+\end{quote}
+Commonly, we use $s_1=0$, $s_2=\delta^*$, $p_1=1-\alpha$, and $p_2=0.5$, for the ease of interpretation and communication with clinicians. The $\delta^*$ is the required minimal observed difference for a trial to succeed. Then the success criteria are
+\begin{enumerate}
+\item $\mathbb{P}(\delta > 0 \given \text{Data}) > 1-\alpha$,
+\item $\mathbb{P}(\delta > \delta^* \given \text{Data}) > 0.5$.
+\end{enumerate}
+This is similar to the double criterion in the frequentist approach when prior information is vague. Thus, the prior information for $\delta$ or for both treatment arms is crucial to Bayesian design.\\
+We also define the criteria for futility:
+\begin{enumerate}
+\item $\mathbb{P}(\delta < f_1 \given \text{Data}) > q_1$,
+\item $\mathbb{P}(\delta < f_2 \given \text{Data}) > q_2$.
+\end{enumerate}
+This is useful in the presence of interim analyses, because it could help to decide early stopping for futility. It is also useful in final analysis to classify a clear success, a clear failure, or an indeterminate outcome. The indeterminate case is undesirable, and happens when neither success criteria nor futility criteria are fulfilled. 
+
+\subsection{Interim analyses and operating characteristics}
+Typically, MCMC methods are used for evaluating the posterior distribution. For evaluation of operating characteristics, people use approximate normalised likelihoods and normal priors.\\
+For a two-arm clinical trial with one or more interim analyses, let $Y_{kij} \sim \Nor(\theta_k, \sigma^2)$ be the observation for treatment $k=1,2$, in stage $i=1,\ldots,l$, for subject $j=1,\ldots,n_{ki}$, with known standard deviation $\sigma$. The treatment effect is $\delta=\theta_2-\theta_1$. If prior information is $\delta \sim \Nor(\delta_0, \sigma_0^2)$, then the posterior at stage $i$ is 
+\begin{equation*}
+\delta \given \text{stage } i \sim \Nor\left( \omega_i \delta_0 + (1 - \omega_i) D_i, \frac{1}{\frac{1}{\sigma_0^2} + \frac{1}{V_i}} \right)
+\end{equation*}
+where $\omega_i = 1/(\sigma_0^2/V_i+1)$, $D_i$ is the aggregated treatment effect at stage $i$, and $V_i$ is the corresponding variance. Derivation of Bayesain posterior mean and variance could be found in Section \ref{Bayes}.\\
+The term \( \omega_i \) represents the weight given to the prior mean in updating the posterior mean:
+\begin{itemize}
+\item If the prior variance \( \sigma_0^2 \) is large (weak prior), then \( \omega_i \approx 0 \), meaning the posterior is dominated by the observed data.
+\item If the observed variance \( V_i \) is large (noisy data), then \( \omega_i \approx 1 \), meaning the posterior remains close to the prior.
+\end{itemize}
+If priors for two arms are available, say $\theta_1 \sim \Nor(\theta_{10},\sigma_1^2)$ and $\theta_2 \sim \Nor(\theta_{20},\sigma_2^2)$, then the posterior at stage $i$ is
+\begin{equation*}
+\delta \given \text{stage } i \sim \Nor\left( \{ \omega_{2i} \theta_{20} + (1 - \omega_{2i}) Y_{2i}\} - \{ \omega_{1i} \theta_{10} + (1 - \omega_{1i}) Y_{1i}\}, \frac{1}{\frac{1}{\sigma_1^2} + \frac{1}{V_{1i}}} + \frac{1}{\frac{1}{\sigma_2^2} + \frac{1}{V_{2i}}}\right),
+\end{equation*}
+where $Y_{ki}$ is the aggregated mean in arm $k$ in stage $i$, $V_{ki}$ is the corresponding variance, and $\omega_{ki}=1/(\sigma_k^2/V_{ki}+1)$.
+
+\section{gsbDesign Package}
+
+\subsection{Key functions in the package}
+gsbDesign, gsbSimulation, gsb
+<<gsbSimulation, echo=TRUE>>=
+library(gsbDesign)
+design <- gsbDesign(nr.stages = 2,
+ patients = c(10,20),
+ sigma=88,
+ criteria.success = c(0,0.95,50,0.5),
+ criteria.futility = c(40,0.9),
+ prior.control = c(49,20),
+ prior.treatment = c(49,0))
+design
+# simulation scenarios
+simulation1 <- gsbSimulation(
+  truth=list(49,c(0,40,50,60,70)),
+  grid.type="sliced",
+  method = "both",
+  type.update="per arm",
+  nr.sim=10000,
+  warnings.sensitivity = 500,
+  seed=1)
+@
+
+\noindent If \texttt{type.update = "treatment effect"}, the Bayesian update from prior to posterior is calculated on treatment effect delta. If \texttt{type.update = "per arm"}, the update is calculated separately in the placebo and the treatment arm. In this case it is possible to enter prior information in only one arm. For \texttt{type.update = "per arm"} only a simulation method is implemented.\\
+If \texttt{type.update = "per arm"} and \texttt{grid.type = "table"} the argument has to be specified as list containing a vector of true control values and true treatment values.\\
+If \texttt{type.update = "per arm"} and \texttt{grid.type = "sliced"} the argument has to be specified as list containing a vector of true control values and a vector of true deltas (= treatment - control).
+
+\section{Reproducing results in Gsponer paper}
+In this section we look at the four examples in the paper, to summarize and reproduce the results. In the next section, we are going to apply these methods to the cases in the paper by \cite{Roychoudhury2018}.
+
+\subsection{Example 1: PoC trial on Crohn's disease} \label{Example1}
+<< Example 1, echo=TRUE>>=
+# design
+library(gsbDesign)
+design <- gsbDesign(nr.stages = 2,
+ patients = c(10,20),
+ sigma=88,
+ criteria.success = c(0,0.95,50,0.5),
+ criteria.futility = c(40,0.9),
+ prior.control = c(49,20),
+ prior.treatment = c(49,0))
+design
+# simulation scenarios
+simulation <- gsbSimulation(
+  truth=list(49,c(0,40,50,60,70)),
+  grid.type="sliced",
+  method = "both",
+  type.update="per arm",
+  nr.sim=10000,
+  warnings.sensitivity = 500,
+  seed=1)
+
+#simulation1
+
+# operating characteristics
+result <- gsb(design=design,simulation=simulation)
+#tables and graphics
+tab(result, what="cumulative all")
+tab(result, what="sample size")
+plot(result, what="sample size", sliced=TRUE)
+plot(result, what="cumulative all", sliced=TRUE)
+@
+
+\subsection{Example 2: Phase II single arm trials}
+Simon's paper describes how we obtain the values in Table II. The response probability $p_0$=0.4 \cite{Simon}. In \citet{Simon}, they searched for optimal design (first stage sample size and total sample size) for a two-stage design.\\
+Two relevant response rates: $\pi_C^*, \pi_E^*$. $\pi_C^*$ is the assumed historical control rate, and if true underlying response rate is larger than $\pi_E^*$, then it is likely that the drug is sufficiently promising. These correspond to $p_0, p_1$ in Simon's paper. $p_0$ is similar to the statistical significance criteria threshold, and $p_1$ is similar to the clinical relevance critaria threshold. In \citet{Gsponer}, the operating characteristics are obtained by package \citet{gsbDesign}, by reformulating single-arm design as two-arm design, and using normal approximation for the endpoint. For $r$ responders in $n$ patients, define $y$ as log-odds of observed response rate. Its distribution is approximately 
+$$y \sim \Nor(\logit(\pi_E), \sigma_E^2/n),$$
+where $\pi_E$ is the true response rate, and $\sigma_E^2=1/\pi_E + 1/(1-\pi_E)$.
+
+\begin{quote}
+Derivation of approximated variance: $\sigma_E^2/n$\\
+Logit function $g(\pi) = \log \left( \frac{\pi}{1 - \pi} \right)$ has derivative $g'(\pi) = \frac{1}{\pi(1 - \pi)}$.\\ 
+Applying the Delta Method:
+$\text{Var}(\logit(\pi)) \approx \left( \frac{1}{\pi(1 - \pi)} \right)^2 \text{Var}(\pi).$\\
+Since $\text{Var}(\pi) \approx \frac{\pi (1 - \pi)}{n}$, we get 
+$\text{Var}(\logit(\pi)) \approx \frac{1}{\pi(1 - \pi)} \cdot \frac{\pi(1 - \pi)}{n} = \frac{1}{n \pi(1 - \pi)}. \quad \square$ 
+\end{quote}
+
+A virtual control arm is needed for this single-arm design to mimic a two-arm design. This is done by setting sample size in control group to 0, and by providing an extremely informative prior. The prior is chosen to be centered at $\pi_C^*$ with an extremely small variance.
+<<Example 2, echo=TRUE>>=
+logit <- function(p) { log(p/(1-p)) }
+expit <- function(x) { exp(x)/(1+exp(x)) }
+p0 = 0.4
+p1 = 0.6
+suc = logit(23.5/46) - logit(p0)
+fut = logit(7.5/16) - logit(p0)
+design <- gsbDesign(nr.stages=2,
+ patients=cbind( c(0,0), c(16,30) ),
+ sigma=2,
+ criteria.success=rbind( c(NA,NA), c(suc,0.5) ),
+ criteria.futility=rbind( c(fut,0.5), c(NA,NA) ),
+ prior.control=c( logit(p0),1000),
+ prior.treatment=c( logit(p0),0.001))
+
+simulation <- gsbSimulation(truth=list(logit(p0),seq(0,0.8,0.01)),
+ grid.type = "sliced",
+ type.update = "per arm",
+ nr.sim = 100000,
+ warnings.sensitivity = 2000,
+ seed = 1)
+result <- gsb(design,simulation)
+result
+#tab(result, what="cumulative all")
+#tab(result, what="sample size")
+plot(result, what="sample size", sliced=TRUE)
+plot(result, what="cumulative all", sliced=TRUE)
+par(mfrow=c(1,2))
+y1 = tab(result,what='futility')[,4]
+y2 = tab(result,what='success')[,5]
+y3 = 1 - y1 - y2
+piE = expit( -0.4+seq(0,0.8,0.01) ) # transform back to original scale
+plot(piE,y1,type='l',ylim=c(0,1),ylab='probability') 
+lines(piE,y2)
+lines(piE,y3)
+y3 = tab(result,what='sample size')[,5]
+plot(piE,y3,type='l',ylab='expected sample size') 
+@
+
+
+\subsection{Example 3: Phase II trial with count endpoint}
+<<Example 3 case 1, echo=TRUE>>=
+### Case 1 non-informative prior
+kappa=2 ; rate1=log(14.8) ; redscen=seq(0,0.9,0.05); OCout2=NULL
+for(i in seq(along=redscen)){
+red=redscen[i]
+rate2=log(14.8*(1-red))
+delta=rate1-rate2
+sigma1=sqrt(kappa+(1/rate1)) ; sigma2=sqrt(kappa+(1/rate2))
+design1 <- gsbDesign(nr.stages=2,
+patients=25,
+sigma=c(sigma2,sigma1),
+criteria.success=c(0,0.9, log(2.5), 0.5),
+criteria.futility=c(log(1.42),0.5,log(2.5),0.9),
+ prior.difference="non-informative")
+simulation1 <- gsbSimulation(truth=c(-1,delta,2), type.update="treatment effect",
+ method= "numerical integration")
+x1 <- gsb(design=design1, simulation=simulation1)
+sub=x1$OC[,"delta"]!=-1
+xout=x1$OC[sub,]
+xout$delta=red*100
+OCout2=rbind(OCout2,xout)
+}
+x1$OC=OCout2
+p1=plot(x1,what="cumulative all")
+p1$ylab="Cumulative probability of success or futility"; p1$xlab="% relative reduction\n"
+p1$main=NULL
+p1$panel.args.common$col <- 1 ; p1$panel.args.common$lty <- 1:3
+p1$legend$bottom$args$key$lines$col <- 1 ; p1$legend$bottom$args$key$lines$lty <- 1:3
+plot(p1) 
+@
+
+<<Example 3 case 2, echo=TRUE>>=
+### Case 2 -informative prior
+kappa=2 ; rate1=log(14.8); redscen=seq(0,0.9,0.05) ; OCout=NULL
+for(i in seq(along=redscen)){
+red=redscen[i]
+rate2=log(14.8*(1-red))
+delta=rate1-rate2
+delta.prior=rate1-log(14.8*(1-0.75))
+sigma1=sqrt(kappa+(1/rate1)) ; sigma2=sqrt(kappa+(1/rate2))
+design1 <- gsbDesign(nr.stages=2,
+patients=25,sigma=c(sigma2,sigma1),
+criteria.success=c(0,0.9, log(2.5), 0.5),
+criteria.futility=c(log(1.42),0.5,log(2.5),0.9),
+ prior.difference=c(delta.prior,10,10))
+simulation1 <- gsbSimulation(truth=c(-1,delta,2),
+ type.update="treatment effect",
+ method= "numerical integration")
+x1 <- gsb(design=design1, simulation=simulation1)
+sub=x1$OC[,"delta"]!=-1
+xout=x1$OC[sub,]
+xout$delta=red*100
+OCout=rbind(OCout,xout)
+}
+x1$OC=OCout
+p1=plot(x1,what="cumulative all")
+p1$xlab="% relative reduction\n" ; p1$ylab="Cumulative probability of success or futility"
+p1$main=NULL
+p1$panel.args.common$col <- 1 ; p1$panel.args.common$lty <- 1:3
+p1$legend$bottom$args$key$lines$col <- 1 ; p1$legend$bottom$args$key$lines$lty <- 1:3
+plot(p1) 
+@
+
+
+\subsection{Example 4: Phase III trial with Bayesian futility criteria for time-to-event endpoint}
+<<Example 4, echo=TRUE>>=
+succ <- rbind(c(0,0.99995),
+ c(0,0.9995),
+ c(log(1.075), 0.975))
+fut <- rbind(c(0,0.99995),
+ c(0,0.9995),
+ NA)
+## additional rules for stopping for futility (alternative design)
+fut1 <- rbind(c(log(1.075),0.95),
+ c(log(1.075),0.9),
+ c(log(1.075),0.8))
+## exchange success and futility criteria as smaller values of the endpoint are better here
+design1 <- gsbDesign(nr.stages = 3,
+ patients = 300,
+ criteria.success = fut,
+ criteria.futility = succ,
+ sigma = 1,
+ prior.difference = "non-informative")
+design2 <- gsbDesign(nr.stages = 3,
+ patients = 300,
+ criteria.success = fut1,
+ criteria.futility = succ,
+ sigma = 1,
+ prior.difference = "non-informative")
+truth <- seq(-0.15,0.15,by=0.005)
+sim <- gsbSimulation(truth = truth,
+ grid.type = "manually",
+ type.update = "treatment effect",
+ method = "numerical integration")
+
+## Calculate the operating characteristics
+x1 <- gsb(design = design1, simulation = sim)
+x2 <- gsb(design = design2, simulation = sim)
+## plot of outcome probabilities (on original HR scale (not log-scale))
+dep <- subset(x1$OC,
+ x1$OC$type %in% c("cumulative futility", "cumulative success"))
+dep$stage <- paste("actual", dep$stage, sep=", ")
+dep2 <- subset(x2$OC,
+ x2$OC$type %in% c("cumulative futility", "cumulative success"))
+dep2$stage <- paste("alternative futility", dep2$stage, sep=", ")
+dep0 <- rbind(dep, dep2)
+p1 <- xyplot(value~exp(delta)|stage, groups=type, data=dep0, col =1, lty=c(2,2,1),
+ layout = c(3,2), as.table = TRUE, scales = list(alternating = 1),
+ ylab = "Cumulative Probability of Stopping",
+ ylim = c(-0.05,1.05), xlab = "True Hazard Ratio\n",
+ panel = function(...){
+ panel.grid(h=-1,v=-1, col="grey", lwd=1, lty=2)
+ panel.xyplot(... , type="l", lwd=3)},
+ key = list(columns = 2, space = "bottom", lines = list(lty=1:2, lwd = 2.5),
+ text = list(c("Futility", "Success" ), col = 1), border = FALSE))
+plot(p1)
+## plot for expected sample size (on original HR scale (not log-scale))
+xx1 <- subset(x1$OC, x1$OC$type %in% c("sample size"))
+xx2 <- subset(x2$OC, x2$OC$type %in% c("sample size"))
+xx <- rbind(cbind(xx1, design = "actual design"),
+ cbind(xx2, design = "alternative design"))
+xx <- subset(xx, xx$stage %in% c("stage 3"))
+xx$value <- xx$value*1/0.09
+
+p2 <- xyplot(value~exp(delta)|design, data=xx,
+ scales = list(alternating = 1),
+ panel = function(...){
+ panel.grid(h=-1,v=-1, col="grey", lwd=1, lty=2)
+ panel.xyplot(... , type="l", lwd=3, col=1)
+ }, ylim = c(1300*1/0.09, 1850*1/0.09),
+ ylab = "Expected Sample Size", xlab = "True Hazard Ratio")
+plot(p2)
+@
+
+\section{Likelihood Ratios, Unit Information LR, and DOR}
+Likelihood ratios (LR) quantify the change in disease odds after having
+observed a positive or negative test result. LRs depend on power and Type I error:
+$$\text{LR}^+ = \frac{\text{Power}}{\text{Type I Error}}, \quad \text{LR}^- = \frac{1-\text{Power}}{1-\text{Type I Error}}.$$
+In Example 1, we have the following table of operating characteristics of the two-stage design for the PoC trial in Crohn's disease. The probability of success when true $\delta=0$ (no difference between placebo and treatment) is the Type I error. The probabilities of success when true $\delta=40, 50, 60, 70$ are the powers in each case. It would be interesting to look at how the likelihood ratios and relevant statistics change with the effect size $\delta$.
+<<Example 1 table, echo=FALSE, results='asis'>>=
+library(gsbDesign)
+design <- gsbDesign(nr.stages = 2,
+ patients = c(10,20),
+ sigma=88,
+ criteria.success = c(0,0.95,50,0.5),
+ criteria.futility = c(40,0.9),
+ prior.control = c(49,20),
+ prior.treatment = c(49,0))
+# simulation scenarios
+simulation <- gsbSimulation(
+  truth=list(49,c(0,40,50,60,70)),
+  grid.type="sliced",
+  method = "both",
+  type.update="per arm",
+  nr.sim=100000,
+  warnings.sensitivity = 500,
+  seed=1)
+
+# operating characteristics
+result <- gsb(design=design,simulation=simulation)
+#tables and graphics
+table <- as.matrix(tab(result, what="cumulative all")[,c(3,7:9)])
+table <- cbind(table, tab(result, what="sample size")[,5])
+colnames(table) <- c("$\\delta$", "Success",
+                         "Futile","Indeterminate","Expected N")
+
+kable(table, format = "latex", booktabs = TRUE, escape = FALSE,
+      caption = "Operating Charactristics") %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  cat()
+@
+\pagebreak
+\subsection{Positive and Negative Likelihood Ratios}
+\begin{center}
+<<LRs, echo=TRUE>>=
+library(latex2exp)
+delta <- c(40,50,60,70) # true effect sizes
+Exp_N <- table[,5]
+TypeIError <- table[1,2]
+power <- table[2:5,2]
+LR_positive <- power/TypeIError
+LR_negative <- (1-power)/(1-TypeIError)
+
+plot(delta, LR_positive, type="o", col="blue", lwd=2, xaxt="n", ylim = c(30,83),
+     xlab=TeX(r"($\delta$)"), ylab="Positive Likelihood Ratio")
+axis(1, at=c(40, 50, 60, 70))
+# Add horizontal text labels on the y-axis
+text(delta-1.3, LR_positive+3, labels=round(LR_positive,2), pos=4, cex=0.8, col="red")
+
+plot(delta, LR_negative, type="o", col="blue", lwd=2, xaxt="n", ylim = c(0.08,0.68),
+     xlab=TeX(r"($\delta$)"), ylab="Negative Likelihood Ratio")
+axis(1, at=c(40, 50, 60, 70))
+# Add horizontal text labels on the y-axis
+text(delta-1, LR_negative+0.05, labels=round(LR_negative,2), pos=4, cex=0.8, col="red")
+
+@
+\end{center}
+\subsection{Unit Information Likelihood Ratios}
+When we receive multiple independent pieces of evidence  $E_1, E_2, …, E_n$, the total likelihood ratio is multiplicative:
+$$\text{LR}_{\text{total}} = \text{LR}_1 \times \text{LR}_2 \times … \times \text{LR}_n$$
+Taking the n$^{th}$ root, the Unit Information Likelihood Ratio (LR$_{\text{UI}}$) is:
+$$\text{LR}_{\text{UI}} = (\text{LR}_{\text{total}})^{1/n}.$$
+This tells us how much each piece of independent observation contributes on average to the total likelihood ratio.\\
+We know $$\text{Posterior odds} =
+\left\{
+\begin{array}{l}
+\text{LR}^{+} = \left\{ \text{LR}_{\text{UI}}^{+} \right\}^{\mathbb{E}(N)} \\
+\text{LR}^{-} = \left\{ \text{LR}_{\text{UI}}^{-} \right\}^{\mathbb{E}(N)}
+\end{array}
+\right\}
+\cdot \text{Prior odds}.$$
+This enables Bayesian updating with likelihood ratios, as likelihood ratios have a multiplicative nature. Then, we can also obtain unit information likelihood ratios ($\text{LR}_{\text{UI}}=\text{LR}^{1/\mathbb{E}(N)}$), which is the likelihood ratio per unit given the expected sample size. This tells us the information one observation contributes.\\
+For each effect size $\delta$, we can compute two bounds for their UI LRs based on the expected sample size $\mathbb{E}(N)$ for that particular value of $\delta$ used to calculate the power and for $\delta=0$. 
+\begin{center}
+<<Unit information, echo=TRUE>>=
+LR_pos_UI <- as.data.frame(t(matrix(
+  c(max(LR_positive[1]^(1/Exp_N[1:2])),min(LR_positive[1]^(1/Exp_N[1:2])),
+    max(LR_positive[2]^(1/Exp_N[c(1,3)])), min(LR_positive[2]^(1/Exp_N[c(1,3)])),
+    max(LR_positive[3]^(1/Exp_N[c(1,4)])), min(LR_positive[3]^(1/Exp_N[c(1,4)])),
+    max(LR_positive[4]^(1/Exp_N[c(1,5)])), min(LR_positive[4]^(1/Exp_N[c(1,5)]))),
+  nrow = 2, ncol = 4,
+  dimnames = list(c("upper bound", "lower bound"),
+                  c("delta=40","delta=50","delta=60","delta=70"))
+  )))
+
+LR_neg_UI <- as.data.frame(t(matrix(
+  c(max(LR_negative[1]^(1/Exp_N[1:2])),min(LR_negative[1]^(1/Exp_N[1:2])),
+    max(LR_negative[2]^(1/Exp_N[c(1,3)])), min(LR_negative[2]^(1/Exp_N[c(1,3)])),
+    max(LR_negative[3]^(1/Exp_N[c(1,4)])), min(LR_negative[3]^(1/Exp_N[c(1,4)])),
+    max(LR_negative[4]^(1/Exp_N[c(1,5)])), min(LR_negative[4]^(1/Exp_N[c(1,5)]))),
+  nrow = 2, ncol = 4,
+  dimnames = list(c("upper bound", "lower bound"),
+                  c("delta=40","delta=50","delta=60","delta=70"))
+  )))
+
+# Plot UI LR+
+plot(delta, LR_pos_UI$`upper bound`, type = "n", xaxt="n",
+     ylim = range(LR_pos_UI$`lower bound`,LR_pos_UI$`upper bound`),
+     xlab = TeX(r"($\delta$)"), ylab = TeX(r"(Unit information LR$^+$)"), 
+     main = TeX(r"(UI LR$^+$ bounds)"))
+axis(1, at=c(40, 50, 60, 70))
+
+# Shade the area between bounds
+polygon(c(delta, rev(delta)), 
+        c(LR_pos_UI$`upper bound`, rev(LR_pos_UI$`lower bound`)), 
+        col = rgb(0.2, 0.5, 0.8, 0.3), border = NA)
+
+# Add lines for upper and lower bounds
+lines(delta, LR_pos_UI$`upper bound`, col = "blue3", lwd = 2)
+lines(delta, LR_pos_UI$`lower bound`, col = "red3", lwd = 2)
+
+# Plot UI LR-
+plot(delta, LR_neg_UI$`upper bound`, type = "n", xaxt="n",
+     ylim = range(LR_neg_UI$`lower bound`,LR_neg_UI$`upper bound`),
+     xlab = TeX(r"($\delta$)"), ylab = TeX(r"(Unit information LR$^-$)"), 
+     main = TeX(r"(UI LR$^-$ bounds)"))
+axis(1, at=c(40, 50, 60, 70))
+
+# Shade the area between bounds
+polygon(c(delta, rev(delta)), 
+        c(LR_neg_UI$`upper bound`, rev(LR_neg_UI$`lower bound`)), 
+        col = rgb(0.2, 0.5, 0.8, 0.3), border = NA)
+
+# Add lines for upper and lower bounds
+lines(delta, LR_neg_UI$`upper bound`, col = "blue3", lwd = 2)
+lines(delta, LR_neg_UI$`lower bound`, col = "red3", lwd = 2)
+
+@
+\end{center}
+
+\subsection{Diagnostic Odds Ratios}
+Diagnostic odds ratios (DOR) tells us how much information there is essentially. The unit information DOR implies the amount of information provided by one observation.
+\begin{center}
+<<Diagnostic OR, echo=TRUE>>=
+DOR <- LR_positive/LR_negative
+A <- as.matrix(LR_pos_UI)
+B <- as.matrix(LR_neg_UI)
+DOR_UI <- t(sapply(1:nrow(LR_pos_UI), function(i) as.vector(outer(A[i, ], B[i, ], "/"))))
+DOR_UI <- as.data.frame(cbind(DOR_UI, upper_bound=apply(DOR_UI,1, max), 
+                              lower_bound=apply(DOR_UI,1, min)))
+
+# Plot DOR
+plot(delta, DOR, type = "o", xaxt="n",lty=1,lwd=2,
+     ylim = range(DOR),
+     xlab = TeX(r"($\delta$)"), ylab = "DOR", col="blue",
+     main = TeX(r"(DOR)"))
+axis(1, at=c(40, 50, 60, 70))
+
+# Plot DOR UI
+plot(delta, DOR_UI$upper_bound, type = "n", xaxt="n",
+     ylim = range(DOR_UI$lower_bound,DOR_UI$upper_bound),
+     xlab = TeX(r"($\delta$)"), ylab = TeX(r"(Unit information DOR)"), 
+     main = TeX(r"(UI DOR bounds)"))
+axis(1, at=c(40, 50, 60, 70))
+
+# Shade the area between bounds
+polygon(c(delta, rev(delta)), 
+        c(DOR_UI$upper_bound, rev(DOR_UI$lower_bound)), 
+        col = rgb(0.2, 0.5, 0.8, 0.3), border = NA)
+
+# Add lines for upper and lower bounds
+lines(delta, DOR_UI$upper_bound, col = "blue3", lwd = 2)
+lines(delta, DOR_UI$lower_bound, col = "red3", lwd = 2)
+
+@
+\end{center}
+
+\subsection{Exploring the impact of the presence of decision value}
+Here we remove the DV criterion in Example 1 and see how the results change. Below table contains the operating characteristics and expected sample size.
+<<Remove DV, echo=FALSE, results='asis'>>=
+design <- gsbDesign(nr.stages = 2,
+ patients = c(10,20),
+ sigma=88,
+ criteria.success = c(0,0.95),
+ criteria.futility = c(40,0.9),
+ prior.control = c(49,20),
+ prior.treatment = c(49,0))
+
+simulation <- gsbSimulation(
+  truth=list(49,c(0,40,50,60,70)),
+  grid.type="sliced",
+  method = "both",
+  type.update="per arm",
+  nr.sim=100000,
+  warnings.sensitivity = 500,
+  seed=1)
+
+# operating characteristics
+result_noDV <- gsb(design=design,simulation=simulation)
+#tables and graphics
+table_noDV <- as.matrix(tab(result_noDV, what="cumulative all")[,c(3,7:9)])
+table_noDV <- cbind(table_noDV, tab(result_noDV, what="sample size")[,5])
+colnames(table_noDV) <- c("$\\delta$", "Success",
+                         "Futile","Indeterminate","Expected N")
+
+kable(table_noDV, format = "latex", booktabs = TRUE, escape = FALSE,
+      caption = "Probability overall") %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  cat()
+@
+\\
+Again we look at the LR$^+$, LR$^-$, unit information LR$_{\text{UI}}^+$, LR$_{\text{UI}}^-$, DOR and DOR$_{\text{UI}}$. Generally, LR$^+$, LR$^-$, LR$_{\text{UI}}^+$, and LR$_{\text{UI}}^+$ are smaller that that under the presence of DV criterion, while the DOR$_{\text{UI}}$s are generally larger, which could be seen from the below plots.
+\begin{center}
+<<LR and DOR without DV, echo=FALSE>>=
+delta <- c(40,50,60,70) # true effect sizes
+Exp_N_noDV <- table_noDV[,5]
+TypeIError_noDV <- table_noDV[1,2]
+power_noDV <- table_noDV[2:5,2]
+
+# LR+ and LR-
+LR_positive_noDV <- power_noDV/TypeIError_noDV
+LR_negative_noDV <- (1-power_noDV)/(1-TypeIError_noDV)
+
+# plot LR+ with and without DV
+plot(delta, LR_positive_noDV, type="o", col="blue", lty=2,
+     lwd=2, xaxt="n", ylim =range(LR_positive_noDV,LR_positive+3),
+     xlab=TeX(r"($\delta$)"), ylab="Positive Likelihood Ratio")
+axis(1, at=c(40, 50, 60, 70))
+lines(delta, LR_positive, type="o",col="blue",lwd=2)
+text(delta-1.3, LR_positive_noDV+2, labels=round(LR_positive_noDV,2), 
+     pos=4, cex=0.8, col="red")
+text(delta-1.3, LR_positive+2, labels=round(LR_positive,2), pos=4, cex=0.8, col="red")
+legend("topleft", legend = c("with DV","without DV"),
+       col = c("blue", "blue"),
+       lty = c(1,2), lwd = c(2,2),bty = "n")
+
+# plot LR- with and without DV
+plot(delta, LR_negative_noDV, type="o", col="blue", lty=2,
+     lwd=2, xaxt="n", ylim =range(LR_negative_noDV,LR_negative+0.5),
+     xlab=TeX(r"($\delta$)"), ylab="Negative Likelihood Ratio")
+axis(1, at=c(40, 50, 60, 70))
+lines(delta, LR_negative, type="o",col="blue",lwd=2)
+text(delta-1, LR_negative_noDV+0.04, labels=round(LR_negative_noDV,2), 
+     pos=4, cex=0.8, col="red")
+text(delta-1, LR_negative+0.04, labels=round(LR_negative,2), pos=4, cex=0.8, col="red")
+legend("topright", legend = c("with DV","without DV"),
+       col = c("blue", "blue"),
+       lty = c(1,2), lwd = c(2,2),bty = "n")
+
+# UI LR:
+LR_pos_UI_noDV <- as.data.frame(t(matrix(
+  c(max(LR_positive_noDV[1]^(1/Exp_N_noDV[1:2])),min(LR_positive_noDV[1]^(1/Exp_N_noDV[1:2])),
+    max(LR_positive_noDV[2]^(1/Exp_N_noDV[c(1,3)])), min(LR_positive_noDV[2]^(1/Exp_N_noDV[c(1,3)])),
+    max(LR_positive_noDV[3]^(1/Exp_N_noDV[c(1,4)])), min(LR_positive_noDV[3]^(1/Exp_N_noDV[c(1,4)])),
+    max(LR_positive_noDV[4]^(1/Exp_N_noDV[c(1,5)])), min(LR_positive_noDV[4]^(1/Exp_N_noDV[c(1,5)]))),
+  nrow = 2, ncol = 4,
+  dimnames = list(c("upper bound", "lower bound"),
+                  c("delta=40","delta=50","delta=60","delta=70"))
+  )))
+
+LR_neg_UI_noDV <- as.data.frame(t(matrix(
+  c(max(LR_negative_noDV[1]^(1/Exp_N_noDV[1:2])),min(LR_negative_noDV[1]^(1/Exp_N_noDV[1:2])),
+    max(LR_negative_noDV[2]^(1/Exp_N_noDV[c(1,3)])), min(LR_negative_noDV[2]^(1/Exp_N_noDV[c(1,3)])),
+    max(LR_negative_noDV[3]^(1/Exp_N_noDV[c(1,4)])), min(LR_negative_noDV[3]^(1/Exp_N_noDV[c(1,4)])),
+    max(LR_negative_noDV[4]^(1/Exp_N_noDV[c(1,5)])), min(LR_negative_noDV[4]^(1/Exp_N_noDV[c(1,5)]))),
+  nrow = 2, ncol = 4,
+  dimnames = list(c("upper bound", "lower bound"),
+                  c("delta=40","delta=50","delta=60","delta=70"))
+  )))
+
+# Plot UI LR+ with and without DV
+plot(delta, LR_pos_UI_noDV$`upper bound`, type = "n", xaxt="n",
+     ylim = range(LR_pos_UI_noDV$`lower bound`,LR_pos_UI$`upper bound`),
+     xlab = TeX(r"($\delta$)"), ylab = TeX(r"(Unit information LR$^+$)"), 
+     main = TeX(r"(UI LR$^+$ bounds)"))
+axis(1, at=c(40, 50, 60, 70))
+
+# Shade the area between bounds
+polygon(c(delta, rev(delta)), 
+        c(LR_pos_UI_noDV$`upper bound`, rev(LR_pos_UI_noDV$`lower bound`)), 
+        col = rgb(1, 0.6, 0.2, 0.3), border = NA)
+
+# Add lines for upper and lower bounds
+lines(delta, LR_pos_UI_noDV$`upper bound`, col = "blue3", lwd = 2, lty = 2)
+lines(delta, LR_pos_UI_noDV$`lower bound`, col = "red3", lwd = 2, lty = 2)
+
+# add bounds when there is DV
+polygon(c(delta, rev(delta)), 
+        c(LR_pos_UI$`upper bound`, rev(LR_pos_UI$`lower bound`)), 
+        col = rgb(0.2, 0.5, 0.8, 0.3), border = NA)
+
+# Add lines for upper and lower bounds
+lines(delta, LR_pos_UI$`upper bound`, col = "blue3", lwd = 2)
+lines(delta, LR_pos_UI$`lower bound`, col = "red3", lwd = 2)
+
+legend("topleft", legend = c("with DV", NA,
+                              "without DV", NA),
+       col = c("blue3", "red3", "blue3", "red3"),
+       lty = c(1, 1, 2, 2), lwd = c(2, 2, 2, 2),bty = "n")
+
+# Plot UI LR- with and without DV
+plot(delta, LR_neg_UI_noDV$`upper bound`, type = "n", xaxt="n",
+     ylim = range(LR_neg_UI_noDV$`lower bound`,LR_neg_UI$`upper bound`),
+     xlab = TeX(r"($\delta$)"), ylab = TeX(r"(Unit information LR$^-$)"), 
+     main = TeX(r"(UI LR$^-$ bounds)"))
+axis(1, at=c(40, 50, 60, 70))
+
+# Shade the area between bounds
+polygon(c(delta, rev(delta)), 
+        c(LR_neg_UI_noDV$`upper bound`, rev(LR_neg_UI_noDV$`lower bound`)), 
+        col = rgb(1, 0.6, 0.2, 0.3), border = NA)
+
+# Add lines for upper and lower bounds
+lines(delta, LR_neg_UI_noDV$`upper bound`, col = "blue3", lwd = 2,lty = 2)
+lines(delta, LR_neg_UI_noDV$`lower bound`, col = "red3", lwd = 2, lty = 2)
+
+# add bounds when there is DV
+polygon(c(delta, rev(delta)), 
+        c(LR_neg_UI$`upper bound`, rev(LR_neg_UI$`lower bound`)), 
+        col = rgb(0.2, 0.5, 0.8, 0.3), border = NA)
+
+# Add lines for upper and lower bounds
+lines(delta, LR_neg_UI$`upper bound`, col = "blue3", lwd = 2)
+lines(delta, LR_neg_UI$`lower bound`, col = "red3", lwd = 2)
+
+legend("bottomleft", legend = c("with DV", NA,
+                                "without DV",NA),
+       col = c("blue3", "red3", "blue3", "red3"),
+       lty = c(1, 1, 2, 2), lwd = c(2, 2, 2, 2),bty = "n")
+
+# DOR 
+DOR_noDV <- LR_positive_noDV/LR_negative_noDV
+A <- as.matrix(LR_pos_UI_noDV)
+B <- as.matrix(LR_neg_UI_noDV)
+DOR_UI_noDV <- t(sapply(1:nrow(A), function(i) as.vector(outer(A[i, ], B[i, ], "/"))))
+DOR_UI_noDV <- as.data.frame(cbind(DOR_UI_noDV, upper_bound=apply(DOR_UI_noDV,1, max), 
+                              lower_bound=apply(DOR_UI_noDV,1, min)))
+
+# Plot DOR with and without DV
+plot(delta, DOR_noDV, type = "o", xaxt="n",lty=2,lwd=2,
+     ylim = range(DOR_noDV, DOR),
+     xlab = TeX(r"($\delta$)"), ylab = "DOR", col="blue",
+     main = TeX(r"(DOR)"))
+axis(1, at=c(40, 50, 60, 70))
+lines(delta, DOR, type="o", col="blue",lty=1, lwd=2)
+legend("topleft", legend = c("with DV","without DV"),
+       col = c("blue", "blue"),
+       lty = c(1,2), lwd = c(2,2),bty = "n")
+
+# Plot DOR UI with and without DV
+plot(delta, DOR_UI_noDV$upper_bound, type = "n", xaxt="n",
+     ylim = range(DOR_UI$lower_bound,DOR_UI_noDV$upper_bound),
+     xlab = TeX(r"($\delta$)"), ylab = TeX(r"(Unit information DOR)"), 
+     main = TeX(r"(UI DOR bounds)"))
+axis(1, at=c(40, 50, 60, 70))
+
+# Shade the area between bounds
+polygon(c(delta, rev(delta)), 
+        c(DOR_UI_noDV$upper_bound, rev(DOR_UI_noDV$lower_bound)), 
+        col = rgb(1, 0.6, 0.2, 0.3), border = NA)
+
+# Add lines for upper and lower bounds
+lines(delta, DOR_UI_noDV$upper_bound, col = "blue3", lwd = 2, lty = 2)
+lines(delta, DOR_UI_noDV$lower_bound, col = "red3", lwd = 2, lty = 2)
+
+# add bounds when there is DV
+polygon(c(delta, rev(delta)), 
+        c(DOR_UI$upper_bound, rev(DOR_UI$lower_bound)), 
+        col = rgb(0.2, 0.5, 0.8, 0.3), border = NA)
+
+# Add lines for upper and lower bounds
+lines(delta, DOR_UI$upper_bound, col = "blue3", lwd = 2)
+lines(delta, DOR_UI$lower_bound, col = "red3", lwd = 2)
+
+legend("topleft", legend = c("with DV", NA, "without DV", NA),
+       col = c("blue3", "red3", "blue3", "red3"),
+       lty = c(1, 1, 2, 2), lwd = c(2, 2, 2, 2),bty = "n")
+@
+\end{center}
+
+\section{Applications to Roychoudhury paper}
+In this part, we look at the application of the methods in \citet{Gsponer} to the 
+single-arm PoC design with binary data in \citet{Roychoudhury2018}. \\
+For binary data, the normal approximation is known to be more appropriate on the logit scale than on the proportion scale. Let $r$ be number of responders, and $n$ be the number of treated patients. Defining y as the corresponding log-odds of the observed response rate, its distribution is approximately given by 
+\begin{equation*}
+y \sim \Nor(\logit(\pi),\sigma^2/n)
+\end{equation*}
+where $\pi$ is the true response rate and $\sigma^2=1/\pi+1/(1-\pi)$. \\
+In \citet{Roychoudhury2018} paper, the primary endpoint is objective response rate(ORR). The prior is set to be ORR $\sim$ Beta(0.0811, 1). Because of the absence of a comparator (in single arm trials), NV is set to 7.5\%. A minimum improvement of 10\% is considered necessary for further development, so the DV is set to be 10\%+7.5\%=17.5\%. Notice in this example, NV $<$ DV.\\
+The dual-criterion is:
+\begin{enumerate}
+\item Bayesian statistical significance: $\mathbb{P}(\text{ORR} \geq 7.5\% \given \text{data}) \geq 0.95$
+\item Clinical relevance: Posterior median $\geq 17.5\%$
+\end{enumerate}
+Null hypothesis: there is no effect of the drug, i.e. ORR=7.5\%\\
+If we observe a number of successes ($r$) and failures ($n - r$), then the posterior is Beta($a + r$, $b + n - r$).\\
+One key difference between \citet{Gsponer} and \citet{Roychoudhury2018} is that \citet{Gsponer} is using a logit transformation for normal approximation, whereas \citet{Roychoudhury2018} is using a Beta prior. So here we need to translate \citet{Roychoudhury2018}'s problem into logit scale:\\
+The prior is approximately logit(ORR) $\sim \Nor(-12,12^2)$. This can be visualized below in the histogram of logit(ORR) where ORR $\sim$ Beta(0.0811, 1), and the red curve is the density of $\Nor(-12, 12^2)$.
+\begin{center}
+<<normal approximation to Beta, echo=FALSE, results='hide'>>=
+ORR <- rbeta(10000, 0.0811, 1)
+logitORR <- log(ORR/(1-ORR))
+mean(logitORR)
+sd(logitORR)
+hist(logitORR, probability = TRUE, xlim = c(-80,15),breaks = 30,
+     main = "Normal approximation to logitORR")
+x = seq(-80,10)
+curve(dnorm(x, mean = -12, sd = 12), xlim = c(-80,15),
+      col = "red", lwd = 2, add = TRUE)
+@
+\end{center}
+The translated dual-criterion for success are:
+\begin{enumerate}
+\item Bayesian statistical significance: $\mathbb{P}(\text{logit(ORR)} \geq \logit(0.075) \given \text{data}) \geq 0.95$
+\item Clinical relevance: $\mathbb{P}(\text{logit(ORR)} \geq \logit(0.175) \given \text{data}) \geq 0.5$
+\end{enumerate}
+The translated dual-criterion for failure are:
+\begin{enumerate}
+\item Bayesian statistical significance: $\mathbb{P}(\text{logit(ORR)} \leq \logit(0.075) \given \text{data}) \geq 0.05$
+\item Clinical relevance: $\mathbb{P}(\text{logit(ORR)} \leq \logit(0.175) \given \text{data}) \geq 0.5$
+\end{enumerate}
+
+\subsection{Promising attempt 1}
+This attempt keeps the two-stages design by introducing a virtual control arm, into which no patients are recruited. It uses N(-12,12) for treatment effect, and N(logit(0.075), 1/1000) as prior for control. It used delta (the changes in logit ORRs), similar to the Gsponer's example 2. This attempt also defined the success and futility criteria using the required responders from \citet{Roychoudhury2018} Table 4. Using above settings, the result gives 0 inconclusive values, which matches the Roychoudhury's results (Table 4 in the paper).\\
+Success criterion: $\mathbb{P}(\delta > \logit(5/25) - \logit(0.075)) \geq 0.5$\\
+Futility criterion: $\mathbb{P}(\delta < \logit(5/25) - \logit(0.075)) \geq 0.5$.
+<<try2, echo=TRUE>>=
+logit <- function(p) { log(p/(1-p)) }
+expit <- function(x) { exp(x)/(1+exp(x)) }
+p0 = 0.075
+p1 = 0.175
+
+prior_treatment_precision = 1/12^2
+
+suc = logit(5/25) - logit(p0)
+fut = logit(5/25) - logit(p0)
+design <- gsbDesign(nr.stages=2,
+ patients=cbind( c(0,0), c(0,25) ),
+ sigma=2,
+ criteria.success=rbind( c(NA,NA), c(suc,0.5) ),
+ criteria.futility=rbind( c(NA,NA),c(fut,0.5) ),
+ prior.control=c( logit(p0),1000),
+ prior.treatment=c(-12,prior_treatment_precision))
+
+simulation <- gsbSimulation(
+  truth=list(logit(0.075), # true control
+             c(logit(0.075)-logit(0.075), logit(0.125)-logit(0.075),
+               logit(0.175)-logit(0.075), # true treatment
+               logit(0.225)-logit(0.075), logit(0.275)-logit(0.075))),
+ grid.type = "sliced",
+ type.update = "per arm",
+ nr.sim = 100000,
+ warnings.sensitivity = 2000,
+ seed = 1)
+result <- gsb(design,simulation)
+result
+#tab(result, what="cumulative all")
+#tab(result, what="sample size")
+#plot(result, what="sample size", sliced=TRUE)
+tab(result, what="cumulative all") # control and treatment columns in logit scale
+plot(result, what="cumulative all", sliced=TRUE)
+par(mfrow=c(1,2))
+y1 = tab(result,what='futility')[,5]
+y2 = tab(result,what='success')[,5]
+y3 = 1 - y1 - y2
+piE = expit(c(logit(0.075), logit(0.125),logit(0.175), # true treatment
+               logit(0.225), logit(0.275)))
+plot(piE,y1,type='l',ylim=c(0,1),ylab='probability') # futility
+lines(piE,y2) # success
+lines(piE,y3)
+y3 = tab(result,what='sample size')[,5]
+plot(piE,y3,type='l',ylab='expected sample size') 
+@
+
+This attempt turns the previous two-stage design to a one-stage design. 
+<<try3, echo=TRUE>>=
+logit <- function(p) { log(p/(1-p)) }
+expit <- function(x) { exp(x)/(1+exp(x)) }
+p0 = 0.075
+p1 = 0.175
+suc = logit(5/25) - logit(p0)
+fut = logit(5/25) - logit(p0)
+design <- gsbDesign(nr.stages=1,
+ patients=c(0,25),
+ sigma=2,
+ criteria.success= c(suc,0.5),
+ criteria.futility= c(fut,0.5),
+ prior.control=c( logit(p0),1000),
+ prior.treatment=c(-12,1/144))
+
+simulation <- gsbSimulation(
+  truth=list(logit(0.075), # true control
+             c(logit(0.075)-logit(0.075), logit(0.125)-logit(0.075),
+               logit(0.175)-logit(0.075), # true treatment
+               logit(0.225)-logit(0.075), logit(0.275)-logit(0.075))),
+ grid.type = "sliced",
+ type.update = "per arm",
+ nr.sim = 100000,
+ warnings.sensitivity = 2000,
+ seed = 1)
+result <- gsb(design,simulation)
+result
+#tab(result, what="cumulative all")
+#tab(result, what="sample size")
+#plot(result, what="sample size", sliced=TRUE)
+tab(result, what="cumulative all") # control and treatment columns in logit scale
+plot(result, what="cumulative all", sliced=TRUE)
+par(mfrow=c(1,2))
+y1 = tab(result,what='futility')[,4]
+y2 = tab(result,what='success')[,4]
+y3 = 1 - y1 - y2
+piE = expit(c(logit(0.075), logit(0.125),logit(0.175), # true treatment
+               logit(0.225), logit(0.275)))
+plot(piE,y1,type='l',ylim=c(0,1),ylab='probability') 
+lines(piE,y2)
+lines(piE,y3)
+y3 = tab(result,what='sample size')[,4]
+plot(piE,y3,type='l',ylab='expected sample size') 
+@
+
+This attempt look at Roychoundhury's second case in Table 4 (sample size = 36). The results is quite far away from Roychoudhury's values (especially in GO case).
+<<try4, echo=TRUE>>=
+logit <- function(p) { log(p/(1-p)) }
+expit <- function(x) { exp(x)/(1+exp(x)) }
+p0 = 0.075
+p1 = 0.175
+suc = logit(7/25) - logit(p0)
+fut = logit(5/25) - logit(p0)
+design <- gsbDesign(nr.stages=1,
+ patients=c(0,36),
+ sigma=2,
+ criteria.success= c(suc,0.5),
+ criteria.futility= c(fut,0.5),
+ prior.control=c( logit(p0),1000),
+ prior.treatment=c(-12,1/144))
+
+simulation <- gsbSimulation(
+  truth=list(logit(0.075), # true control
+             c(logit(0.075)-logit(0.075), logit(0.125)-logit(0.075),
+               logit(0.175)-logit(0.075), # true treatment
+               logit(0.225)-logit(0.075), logit(0.275)-logit(0.075))),
+ grid.type = "sliced",
+ type.update = "per arm",
+ nr.sim = 100000,
+ warnings.sensitivity = 2000,
+ seed = 1)
+result <- gsb(design,simulation)
+result
+#tab(result, what="cumulative all")
+#tab(result, what="sample size")
+#plot(result, what="sample size", sliced=TRUE)
+tab(result, what="cumulative all") # control and treatment columns in logit scale
+plot(result, what="cumulative all", sliced=TRUE)
+par(mfrow=c(1,2))
+y1 = tab(result,what='futility')[,4]
+y2 = tab(result,what='success')[,4]
+y3 = 1 - y1 - y2
+piE = expit(c(logit(0.075), logit(0.125),logit(0.175), # true treatment
+               logit(0.225), logit(0.275)))
+plot(piE,y1,type='l',ylim=c(0,1),ylab='probability') 
+lines(piE,y2)
+lines(piE,y3)
+y3 = tab(result,what='sample size')[,4]
+plot(piE,y3,type='l',ylab='expected sample size') 
+@
+
+\subsection{Not so successful attempts}
+I made some attempts but met some problems too:\\
+This attempt uses $\Nor(\logit(0.075),1/1000)$ as prior for control, and $\Nor(-12,12^2)$ as prior for treatment. It uses two futility criteria.
+<<try0, echo=TRUE>>=
+library(gsbDesign)
+logit <- function(p) { log(p/(1-p)) }
+expit <- function(x) { exp(x)/(1+exp(x)) }
+
+# single-arm design
+design <- gsbDesign(nr.stages=1,
+ patients=c(0,25), 
+ sigma=2,
+ criteria.success=c(logit(0.075), 0.95, logit(0.175), 0.5),
+ criteria.futility=c(logit(0.075), 0.05, logit(0.175), 0.5),
+ prior.control=c(logit(0.075),1000), # very small variance in control prior
+ prior.treatment=c(-12, 1/12^2)) # large variance in treatment prior
+
+simulation <- gsbSimulation(
+  truth=list(logit(0.075), # true control
+             c(logit(0.075), logit(0.125),logit(0.175), # true treatment
+               logit(0.225), logit(0.275))),
+ grid.type = "table",
+ type.update = "per arm", # only simulation method is implemented
+ nr.sim = 100000,
+ warnings.sensitivity = 2000,
+ seed = 1)
+
+simulation <- gsbSimulation(
+  truth=list(logit(0.075), # true control
+             c(logit(0.075), logit(0.125), logit(0.175), # true treatment
+               logit(0.225), logit(0.275))),
+ grid.type = "table",
+ type.update = "per arm", # only simulation method is implemented
+ nr.sim = 100000,
+ warnings.sensitivity = 2000,
+ seed = 1)
+result <- gsb(design,simulation)
+result
+#tab(result, what="cumulative all")
+#tab(result, what="sample size")
+#plot(result, what="sample size", sliced = FALSE)
+plot(result, what="cumulative all", sliced=FALSE)
+par(mfrow=c(1,2))
+y1 = tab(result,what='futility')[,4]
+y2 = tab(result,what='success')[,4]
+y3 = 1 - y1 - y2
+piE = expit(c(logit(0.075), logit(0.125),logit(0.175), # true treatment
+               logit(0.225), logit(0.275)))
+plot(piE,y1,type='l',ylim=c(0,1),ylab='probability') 
+lines(piE,y2)
+lines(piE,y3)
+y3 = tab(result,what='sample size')[,4]
+plot(piE,y3,type='l',ylab='expected sample size') 
+@
+
+This attempt uses $\Nor$(-12, 1/1000) as prior for control, and $\Nor(-12,12^2)$ as prior for treatment. It only have one criteria for futility(corresponding to 1 stage in total), as the examples in Gsponer's paper. The result returns indeterminate situations.
+<<try1, echo=TRUE>>=
+library(gsbDesign)
+logit <- function(p) { log(p/(1-p)) }
+expit <- function(x) { exp(x)/(1+exp(x)) }
+
+# single-arm design
+design <- gsbDesign(nr.stages=1,
+ patients=c(0,25), 
+ sigma=2,
+ criteria.success=c(logit(0.075), 0.95, logit(0.175), 0.5),
+ criteria.futility=c(logit(0.075), 0.05),
+ prior.control=c(-12,1000), # very small variance in control prior
+ prior.treatment=c(-12, 1/12^2)) # large variance in treatment prior
+
+simulation <- gsbSimulation(
+  truth=list(-12, # true control
+             c(logit(0.075), logit(0.125),logit(0.175), # true treatment
+               logit(0.225), logit(0.275))),
+ grid.type = "sliced",
+ type.update = "per arm", # only simulation method is implemented
+ nr.sim = 100000,
+ warnings.sensitivity = 2000,
+ seed = 1)
+
+result <- gsb(design,simulation)
+result
+#tab(result, what="cumulative all")
+#tab(result, what="sample size")
+#plot(result, what="sample size", sliced = T)
+plot(result, what="cumulative all", sliced=T)
+par(mfrow=c(1,2))
+y1 = tab(result,what='futility')[,4]
+y2 = tab(result,what='success')[,4]
+y3 = 1 - y1 - y2
+piE = expit(c(logit(0.075), logit(0.125),logit(0.175), # true treatment
+               logit(0.225), logit(0.275)))
+plot(piE,y1,type='l',ylim=c(0,1),ylab='probability') 
+lines(piE,y2)
+lines(piE,y3)
+y3 = tab(result,what='sample size')[,4]
+plot(piE,y3,type='l',ylab='expected sample size') 
+@
+
+
+Below code finds the minimal sample size with the help of gsbDesign package.[Not finished]
+<<minimal sample size search, eval=FALSE>>=
+
+SS_Bayesian <- function(
+  null.value,
+  p.positive = 0.95,
+  dec.value,
+  mu = -12, 
+  sigma = 2,
+  n.max = 100
+){
+  NV=null.value
+  DV=dec.value
+  n <- 1:n.max
+  
+  
+}
+
+
+SS_DC_BayesBin <- function(
+  null.value, # null.value
+  p.positive  = 0.95, # required probability to be better than the null
+  dec.value,  # decision value
+  post.est = c("median","mean")[1], # median by default
+  a=1, b=1,    # prior specification, a Beta(a,b) prior
+  n.max = 1000 # numbers of iterations
+){
+  NV = null.value
+  DV = dec.value
+  n <- 1:n.max
+
+  # required number of responders to satisfy DV criterion (posterior mean)
+  if (post.est == "mean") { # if estimate posterior mean
+    rr = rep(NA,max(n)) # a vector to store rr (required responders)
+      for ( nn in n) { # n iterations
+      r = 0:nn # different numbers of responders
+      est1 = (a+r)/(a+b+nn) # posterior estimate based on different success numbers
+      rr[nn] = r[est1>=DV][1] # minimum r s.t. DV criterion is fulfilled
+      }
+    print(cbind(rr,n)) # required responders for each sample size n 
+    est = (a+rr)/(a+b+n) # posterior estimate of mean
+  }
+  
+  # required number of responders to satisfy DV criterion (posterior median)
+  if (post.est == "median") {
+    rr = rep(NA,max(n))
+    for ( nn in n) {
+      r = 0:nn
+      est1= qbeta(0.5,a+r,b+nn-r) # the median of beta posterior
+      rr[nn] = r[est1>=DV][1] # minimum r s.t. posterior median >= DV
+    }
+    print(cbind(rr,n))
+    est = qbeta(0.5,a+rr,b+n-rr)
+  }
+
+  p.obs = rr/n
+
+  # find n such that posterior prob >= p.positive (= 0.95)
+  # in other words, find n such that statistical significance is guaranteed.
+  post.crit <- 1 - pbeta(NV,a+rr,b+n-rr) # posterior probability of being greater than NV.
+  post.crit.index = post.crit >= p.positive # index=TRUE if the probability >= 0.95
+
+  # find n such that for all m>=n, statistical criterion is fulfilled
+  find.n =  cbind( n, rev(post.crit.index), 
+                   cumsum(rev(post.crit.index))==n, 
+                   # true if all m>=n fulfill stats criterion
+                   rev(n))
+  colnames(find.n) = c("index","okay","all.next.okay","n")
+
+  n.min=NULL
+
+  if (any(find.n[,3]==1) ) {
+    n.okay = find.n[find.n[,3]==1,,drop=FALSE] # take all the rows with all.next.okay==1
+    n.min = n.okay[nrow(n.okay),4] # take the n in the last row (find minimum n)
+    n.min.15 = n.min+15
+    est=round(est,3)
+    ss.table = data.frame( n=n[1:n.min.15], 
+                           # sample size from 1 to n.min+10
+                           r=rr[1:n.min.15], 
+                           # number of responders needed for DV criterion
+                           p.obs=p.obs[1:n.min.15], 
+                           est = est[1:n.min.15], 
+                           # posterior estimate of median (by default)
+                           post.p.positive=post.crit[1:n.min.15], 
+                           # posterior probability of a positive effect
+                           okay=post.crit.index[1:n.min.15]
+                           # TRUE if statistical significance is satisfied
+                           )}
+
+  if (is.null(n.min))
+    stop("No sample size satisfies required posterior 
+         probability criterion pr(p>NV): try higher n.max")
+
+plot( 1:(n.min+15), post.crit[1:(n.min+15)], type="p", xaxs="i", xlab="n",
+        ylab="pr(p>NV)",xlim = c(0,n.min+20), ylim=c(0.5,1),
+        lwd=1, pch = ifelse(post.crit.index,16,1),
+        main="prob(p>NV) as a function of n", cex.lab=1.4, cex.main=1.4)
+  abline(h=p.positive, lty=2)
+  abline(v=n.min, lty=3)
+  text(1.05*n.min, 0.6, paste("n.min=",n.min, sep=''),adj=0)
+  text(30, 0.8, paste("a=",round(a,4)))
+  
+  return(list(ss.table=ss.table,n.min=n.min))}
+
+@
+
+
+%% References
+\appendix
+\section*{Appendix}
+
+
+\bibliographystyle{apalike}
+\bibliography{bibliography_1}
+
+\newpage
+\section*{Computational details}
+<< "sessionInfo" >>=
+cat(paste(Sys.time(), Sys.timezone(), "\n"))
+sessionInfo()
+@
+
+\end{document}

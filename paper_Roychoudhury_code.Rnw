@@ -1,0 +1,775 @@
+\documentclass[a4paper, 11pt]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{amsmath, amssymb} % math
+\usepackage[round]{natbib} % bibliography
+\usepackage[dvipsnames,table]{xcolor} % colors
+\usepackage[onehalfspacing]{setspace} % more space
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage[labelformat = empty]{caption}
+
+
+%% margins
+% \usepackage{geometry}
+% \geometry{
+%   a4paper,
+%   total={170mm,257mm},
+%   left=20mm,
+%   right=20mm,
+%   top=30mm,
+%   bottom=30mm,
+% }
+
+\newcommand\mail{yangmi@ethz.ch}
+\title{\textbf{Reproducible study and further explorations on Bayesian dual-criterion design}}
+\author{Minghan Yang}
+\date{February 2025}
+
+\usepackage{hyperref}
+\hypersetup{
+  bookmarksopen=true, 
+  breaklinks=true,
+  pdfsubject={},
+  pdfkeywords={},
+  colorlinks=true,
+  linkcolor=black,
+  anchorcolor=black,
+  citecolor=blue,
+  urlcolor=blue,
+}
+
+<< "main-setup", echo = FALSE, message=FALSE, warning=FALSE>>=
+## setting knitr options (see https://yihui.org/knitr/ for all the options)
+library(knitr)
+opts_knit$set(concordance = FALSE)
+opts_chunk$set(fig.height = 4,
+               echo = FALSE,
+               warning = FALSE,
+               message = FALSE
+               )
+
+# Load necessary libraries
+library(ggplot2)
+library(cowplot)
+library(gridExtra)
+library(grid)
+library(kableExtra)
+library(latex2exp)
+@
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\begin{abstract}
+Related to paper ``Beyond p-values: A phase II dual-criterion design with statistical significance and clinical relevance'' \citet{Roychoudhury2018}. It addresses Bayesian dual-criterion design, sample size calculation, operational characteristics, and two cases: a randomized PoC design with time-to-event data and a single-arm PoC design with binary data. It also explores how the prior choices affect the minimum sample size. 
+\end{abstract}
+
+\section{Introduction}
+Proof-of-concept (POC) in Phase II trails is important in investigating the efficacy of an experimental drug. It will influence the decision of whether continuing or not on the development of the drug. \\
+Dual-criterion design in frequentist and Bayesian applications are discussed. \\
+Three generic phase II designs are reviewed:
+\begin{enumerate}
+\item Standard design\\
+For comparative treatment and control trails, it puts forward criteria expressed as error rates: Type I error control and power (correctly reject $H_0$ when it is false).\\
+We want to control type I error and maximize power.\\
+Type I error: $\mathbb{P}(\text{reject } H_0 | H_0 \text{ is true})=\alpha$\\
+Type II error: $\mathbb{P}(\text{not reject } H_0 | H_0 \text{ is false})=\beta$.\\
+Limitation: statistical significant only guarantees evidence to reject ``No effect", but is not sufficient for clinical perspective. Also, it always result in success or failure according to statistical significance.\\
+Increasing the sample size increases the power for effects better than null.
+\item Dual-criterion design\\
+Considers both the statistical significance and the effect estimate. \\
+Required inputs: type I error control (null hypothesis and type I error $\alpha$) and a decision value (DV). The DV is same as the ``target difference'' in Fisch's paper. It is the minimal effect estimate needed for trail success (if higher than this value with moderate confidence, then a ``GO'' decision is made).\\
+By considering both criterion, we have both statistical significance and guarantees a sufficiently large effect estimate.\\
+The dual-criterion is more demanding, the resulting power of study is less than that of a standard design.\\
+Power is only increased for values superior to the DV since inferior values are clinically irrelevant.\\
+Decisions for dual-criterion design:
+\begin{center}
+<<plot1, echo=FALSE>>=
+# Updated data based on visual inspection of the plot
+data <- data.frame(
+  group = factor(c("(1) NO-GO", "(2) GO", "(3)Inconclusive", "(4)Inconclusive"), 
+                 levels = c("(4)Inconclusive", "(3)Inconclusive", 
+                            "(2) GO","(1) NO-GO")),
+  hazard_ratio = c(0.85, 0.6, 0.8, 0.65),     # Hazard ratio estimates for each case
+  lower_ci = c(0.55, 0.25, 0.65, 0.25),         # Lower bounds of CIs
+  upper_ci = c(1.15, 0.95, 0.95, 1.05)          # Upper bounds of CIs
+)
+
+# Plot setup
+ggplot(data, aes(x = hazard_ratio, y = group)) +
+  geom_point(shape = 18, size = 3) +   # Diamond marker for hazard ratios
+  geom_errorbarh(aes(xmin = lower_ci, xmax = upper_ci), height = 0.2) + # Error bars for CIs
+  geom_vline(xintercept = 1, linetype = "dashed", color = "grey50") +  # Line for HR=1
+  geom_vline(xintercept = 0.7, linetype = "dashed", color = "grey50") + # Line for DV (assumed to be 0.7)
+  annotate("text", x = 0.7, y = 0, label = "DV", vjust = -1, color = "red",fontface = "bold", size = 5) + # Label for DV
+  annotate("text", x = 1.02, y = 0, label = "NV", vjust = -1, color = "red",fontface = "bold", size = 5) +   # Label for HR=1
+  labs(x = "Hazard ratio", y = "") +
+  scale_x_continuous(breaks = NULL, limits = c(0.2, 1.5)) +
+  theme_minimal(base_size = 14) +
+  theme(panel.grid.minor = element_blank()) +
+  annotate("text", x = 0.4, y = 4.5, label = "Treatment better", hjust = 0, color = "grey20") +
+  annotate("text", x = 1.4, y = 4.5, label = "Treatment worse", hjust = 1, color = "grey20")
+@
+\end{center}
+
+\item Precision design\\
+Doesn't rely on error rates. When null hypothesis or other benchmark values cannot be determined, this can be an option. It requires sufficiently precise effect estimate.\\
+\end{enumerate}
+
+\subsection{Hazard ratio and log hazard ratio}
+Consider hazard function in survival analysis, it describes the risk of failing. We consider hazard ratio between experimental drug and control as the outcome of interest. Hazard ratio(HR) less than 1 means the drug is better than the control. We want to have smaller hazard and hazard ratio, so that the drug is more effective. \\
+In the paper, the log hazard ratio $\theta$ ($\log$ HR) is used instead of the hazard ratio. This could be because of the following reasons.\\
+Firstly, according to the Central Limit Theorem, as the sample size increases, the distribution of the estimator (the log HR) approaches a normal distribution. Also, the HR itself is a ratio of hazard rates and is positively skewed, meaning it doesn’t naturally fit a normal distribution. Taking the logarithm of the HR stabilizes its variance, transforming the skewed HR distribution into one that is more symmetric and closer to normal. Moreover, this approximate normality of $\log$ HR is useful in sample size calculation, which is discussed in the next session.
+
+\subsection{Sample size}
+Given the significance level $\alpha$, the null value (NV) and the decision value (DV) for $\log$ HR, we can calculate the minimum sample size (for normally distributed data). Notice here that for $\log$ HR, DV $<$ NV, where DV, NV are log hazard ratios.
+\begin{equation*}
+n_{\text{min}}=\frac{\sigma^2 \times z_{\alpha}^2}{(\text{NV}-\text{DV})^2}
+\end{equation*}
+where $\sigma$ is the outcome standard deviation, and takes the value 2 under equal randomization for the standard normal approximation to time-to-event data. 
+%In the log scale, if we say the value is within $\pm 2$ about the truth, then this translates into a range of approximately $\pm 100 \time 2 \%$ about the truth on the original scale. 
+$z_{\alpha}$ is the $100(1-\alpha)\%$ quantile of the standard normal distribution. $n_{\text{min}}$ gives the minimum sample size that implies statistical significance if the effect estimate equals the DV. This value is calculated under the situation that both criterion are just satisfied. As illustrated in the below graph, when the effect estimate $\theta=$ DV, and the lower bound of the confidence interval just touches the NV so that statistical significance is reached, we have the minimum sample size. Notice that when sample size equals the minimum sample size, the half-width of the confidence interval $z_{\alpha}\sqrt{\frac{\sigma^2}{n_{\text{min}}}}$ equals NV-DV, so there will be no ``Inconclusive'' decisions. When the sample size is larger, the confidence interval becomes narrower, then an ``Inconclusive'' decision will occur.
+\begin{center}
+<< Minimum_sample_size, echo=FALSE>>=
+# Define x-axis range and labels
+x <- c(5.5,10)
+par(mar = c(4, 4, 2, 2) + 0.1)
+# Set up an empty plot with x-axis labeled points
+plot(1:6, type = "n", xaxt = "n", ylim = c(0.2, 0.5), yaxt = "n", ylab = "", 
+     xlab = "Log Hazard Ratio", xlim=c(-2,12))
+axis(1, at = x, labels = c("DV", "NV"))
+
+# Add vertical slim strip constrained in y-axis between 0.6 and 0.63
+rect(1, 0.3, 10, 0.32, col = rgb(0.5, 0.5, 1, alpha = 0.3), border = NA)
+
+# Add vertical dashed lines at x = 1 and x = 5.5
+abline(v = x, col = "black", lty = 2)
+abline(v=1, col="black",lty=2)
+
+text(x=1.3, y=0.35, labels = TeX("$\\theta-z_{\\alpha} \\sqrt{\\frac{\\sigma^2}{n_{min}}}$"),cex = 1.5)
+text(x=5.7, y=0.34, labels = TeX("$\\theta$"),cex=1.5)
+text(x=9.7, y=0.35, labels = TeX("$\\theta+z_{\\alpha} \\sqrt{\\frac{\\sigma^2}{n_{min}}}$"),cex=1.5)
+text(x=5, y=0.31, labels = "confidence interval", cex=1)
+@ 
+\end{center}
+
+\subsection{Operating characteristics}
+The operating characteristics are the type I error and the power of the clinical trial design. \\
+For dual-criterion designs, the power at the DV is approximately 50\%, so that if the true parameter equals the DV, there is roughly equal chance that the effect estimate lies on either side of the DV. Having 50\% at the DV does not mean the study is under-powered.
+
+\subsection{Reproduce Figure 1} \label{1.4}
+In Figure 1, the two plots illustrate the operating characteristics of dual-criterion designs with 309 and 420 events. The number 309 is the minimum sample size calculated under the example conditions $\sigma=2$, $\alpha=2.5\%$, NV = $\log(1)$ and DV = $\log(0.8)$ for $\log$ HR:
+\begin{equation*}
+n_{\text{min}}=\frac{2^2 \times z_{0.025}^2}{(\log{1}-\log{0.8})^2} = 308.594 \approx 309.
+\end{equation*}
+The probability of making a ``GO'' decision is the probability of the estimate smaller than the DV (i.e. clinical relevance) while the NV is outside the confidence interval (i.e. statistical significance). The ``NO-GO'' decision is made when the estimate is larger than the DV, and the NV is inside the confidence interval. The ``Inconclusive'' decisions are made if neither ``GO'' nor ``NO-GO'' is satisfied. The probability of ``Inconclusive'' decision is hence 1 minus the probability of ``GO'' and ``NO-GO'' decisions. \\
+Below code presents the process of obtaining Figure 1 in the paper \citet{Roychoudhury2018}. An extra notice here is the calculation of the cut value for statistical significance when the sample size is larger than $n_{\text{min}}$. As we mentioned earlier, when $n > n_{\text{min}}$, the confidence interval is shorter, so the cut value \texttt{cut.ssig} of the ``NO-GO'' decision should be a value between DV and NV such that $z_{\alpha}\sqrt{\frac{\sigma^2}{n}} = \text{NV} - \texttt{cut.ssig}$. So in this case, the $\texttt{cut.ssig} = \log(1) - z_{\alpha}\sqrt{\frac{\sigma^2}{n}}$.
+\begin{center}
+<<Figure_1, results='hide', fig.height=5, echo=TRUE>>=
+# Sequence of true hazard ratios in log scale
+t.d <- log(seq(0.5, 1, 0.01))
+
+# Left panel (n = 309)
+n1 <- 309
+sd1 <- sqrt((2^2) / n1) # standard deviation
+cut.ssig1 <- log(0.8) # cutting point for statistical significance
+cut.crel1 <- log(0.8) # cutting point for clinical relevance
+pp.go1 <- pnorm(cut.crel1, t.d, sd1) # probability of GO decision
+pp.ngo1 <- 1 - pnorm(cut.ssig1, t.d, sd1) # probability of NO-GO decision
+pp.intd1 <- 1 - pp.go1 - pp.ngo1 # probability of inconclusive decision
+df1 <- data.frame(HazardRatio = exp(t.d), GO = pp.go1, 
+                  NOGO = pp.ngo1, Inconclusive = pp.intd1)
+
+# Right panel (n = 420)
+n2 <- 420
+sd2 <- sqrt((2^2) / n2) # standard deviation
+cut.ssig2 <- log(1) - qnorm(0.975) * sqrt(2^2 / 420) # statistical significance
+cut.crel2 <- log(0.8) # clinical relevance
+pp.go2 <- pnorm(cut.crel2, t.d, sd2) # probability of GO decision
+pp.ngo2 <- 1 - pnorm(cut.ssig2, t.d, sd2) # probability of NO-GO decision
+pp.intd2 <- 1 - pp.go2 - pp.ngo2 # probability of inconclusive decision
+df2 <- data.frame(HazardRatio = exp(t.d), GO = pp.go2, 
+                  NOGO = pp.ngo2, Inconclusive = pp.intd2)
+
+# Define the line colors and types
+line_colors <- c("GO" = "green3", "Inconclusive" = "darkgoldenrod2", "NO-GO" = "red3")
+line_types <- c("GO" = "solid", "Inconclusive" = "dotted", "NO-GO" = "dashed")
+
+# Plot for n = 309
+p1 <- ggplot(df1, aes(x = HazardRatio)) +
+  geom_line(aes(y = GO, color = "GO", linetype = "GO"),size=0.8) +
+  geom_line(aes(y = NOGO, color = "NO-GO", linetype = "NO-GO"),size=0.8) +
+  geom_line(aes(y = Inconclusive, color = "Inconclusive", 
+                linetype = "Inconclusive"),size=1.5) +
+  geom_vline(xintercept = c(0.8, 1.0), linetype = "dashed", color = "black") +
+  labs(title = "Nevent = 309") +
+  scale_color_manual(values = line_colors) +
+  scale_linetype_manual(values = line_types) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    panel.grid.minor = element_blank(),
+    axis.title.y = element_blank(),  # Remove individual y-labels
+    axis.title.x = element_blank()
+  )
+
+# Plot for n = 420
+p2 <- ggplot(df2, aes(x = HazardRatio)) +
+  geom_line(aes(y = GO, color = "GO", linetype = "GO"),size=0.8) +
+  geom_line(aes(y = NOGO, color = "NO-GO", linetype = "NO-GO"),size=0.8) +
+  geom_line(aes(y = Inconclusive, color = "Inconclusive", 
+                linetype = "Inconclusive"),size=1.5) +
+  geom_vline(xintercept = c(0.8, 1.0), linetype = "dashed", color = "black") +
+  labs(title = "Nevent = 420") +
+  scale_color_manual(values = line_colors) +
+  scale_linetype_manual(values = line_types) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    panel.grid.minor = element_blank(),
+    axis.title.y = element_blank(),  # Remove individual y-labels
+    axis.title.x = element_blank()
+  )
+
+# Combine the plots into a single figure without individual y-axis labels
+combined_plots <- plot_grid(p1, p2, ncol = 2, align = 'hv', rel_widths = c(1, 1))
+
+# Extract and create a shared legend
+legend <- get_legend(
+  p1 + theme(legend.position = "right") +
+    guides(color = guide_legend(title = "Decision", nrow = 1), 
+           linetype = guide_legend(title = "Decision", nrow = 1)))
+
+# Add a shared y-axis label using grid.arrange
+final_plot <- grid.arrange(
+  arrangeGrob(combined_plots, 
+              left = textGrob("Probability", rot = 90, vjust = 1.2),
+              bottom = textGrob("Hazard Ratio",just = "centre")),
+  legend = legend,
+  ncol = 1,
+  heights = c(10, 1) 
+)
+
+# Print the final plot
+print(final_plot)
+@
+\end{center}
+
+\section{Example 1: A randomized PoC design with time-to-event data}
+Randomized, double-blind, RCT. Patients were randomized equally to: (experimental drug + standard care) OR (standard care only).\\
+Primary outcome of interest (or called ``endpoint'') is the progression-free survival (PFS), which is the time when the disease or cancer do not get worse. The endpoint was assessed with a \emph{log-rank test} and \emph{Cox regression} with treatment as a covariate.
+\begin{itemize}
+\item \emph{log-rank test}: compare the survival distributions of two or more groups. It tests the hypothesis that there is no difference in survival (or time-to-event) between the two groups. If the log-rank test indicates a significant difference, it suggests the treatment affects how long patients live without their disease worsening.
+\item \emph{Cox regression}: estimate the hazard ratio between two groups, which tells us the relative risk of disease progression in the treatment group compared to the control group. If the $\text{HR} < 1$, it suggests that the new treatment delays disease progression better than the control treatment.
+\end{itemize}
+As for the DV, HR=0.7 was deemed necessary to be clinically meaningful. Values larger than 0.7 are unsatisfactory to clearly justify further development of the drug.\\
+So the dual-criterion is:
+\begin{enumerate}
+\item Statistical significance: one-sided p-value of log-rank test $\leq 0.1$.
+\item Clinical relevance: estimated HR from Cox regression $\leq 0.70$.
+\end{enumerate}
+\subsection{Reproduce Table 3}
+Here we attempt to reproduce the values in Table 3. \\
+For the first sub-table, similar to Section \ref{1.4}, when $n > n_{\text{min}}$, the cut value $\hat{\theta}$ (\texttt{cut.ssig}) of the ``NO-GO'' decision is given by $\texttt{cut.ssig} = \log(1) - z_{\alpha}\sqrt{\frac{\sigma^2}{n}}$. These correspond to $\hat{\theta} > 0.736 \neq 0.7$ from the paper. \\
+For the second sub-table, $n = n_{\text{min}}$.\\
+For the third sub-table, it requires one-sided type I error of 0.1 and power of 0.9 for HR=0.5. So the cut value for clinical relevance is chosen to satisfy these requirements. The authors used 0.901 as the power for HR=0.5, rather than 0.9, probably because this ensures a power of at least 0.9.\\
+For the forth sub-table, it requires one-sided type I error of 0.1 and power of 0.8 for HR=0.5. The sample size $n=38 < n_{\text{min}}$. The cut value of the decisions are calculated in a similar way as in Section \ref{1.4}. The cut value of $\hat{\theta}$ is slightly different from 0.659 as claimed in the paper, very possibly because of rounding.\\
+For sub-table five, it used a type I error of 0.2 and a power of 0.9, with sample size $n=38 < n_{\text{min}}$. The cut value of the decisions are calculated in a similar way as in Section \ref{1.4}.
+<< Table_3_code, echo = TRUE, results='asis'>>=
+# minimum sample size
+n.min <- ceiling((4*qnorm(0.9)^2)/(log(1)-log(0.7))^2) # n.min = 52
+
+# a sequence of true log(HR).
+t.d <- log(seq(0.5, 1, 0.1))
+
+# Dual-criterion design: alpha=0.1, DV=log(0.7), n=70
+n1 <- 70
+sd1 <- sqrt((2^2)/n1) # standard deviation
+cut.ssig <- log(1)-qnorm(0.9)* sqrt(2^2 / n1) # statistical significance
+cut.crel <- log(0.7) # critical relevance
+pp.go1 <- pnorm(cut.crel, t.d, sd1)
+pp.ngo1 <- 1- pnorm(cut.ssig, t.d, sd1)
+pp.intd1 <- 1 -pp.go1 - pp.ngo1
+
+subtable1 <- matrix(data=round(c(exp(t.d), pp.go1,pp.ngo1,pp.intd1),3), ncol=4)
+colnames(subtable1) <- c("True HR", "GO: $\\hat{\\theta} \\leq 0.7$",
+                         "NO-GO: $\\hat{\\theta} > 0.736$","Inconclusive")
+
+# Dual-criterion design: alpha=0.1, DV=0.7, n=52
+n2 <- 52
+sd2 <- sqrt((2^2)/n2)
+cut.ssig <- log(0.7)
+cut.crel <- log(0.7)
+pp.go2 <- pnorm(cut.crel, t.d, sd2)
+pp.ngo2 <- 1-pnorm(cut.ssig, t.d, sd2)
+pp.intd2 <- 1 -pp.go2 - pp.ngo2
+
+subtable2 <- matrix(data=round(c(exp(t.d), pp.go2,pp.ngo2,pp.intd2),3), ncol=4)
+colnames(subtable2) <- c("True HR", "GO: $\\hat{\\theta} \\leq 0.7$",
+                         "NO-GO: $\\hat{\\theta} > 0.7$","Inconclusive")
+
+# Dual-criterion design: alpha=0.1, beta=0.1, n=55
+n3 <- 55
+sd3 <- sqrt((2^2)/n3)
+cut.ssig <- qnorm(0.901,log(0.5),sd3) 
+cut.crel <- qnorm(0.901,log(0.5),sd3)
+pp.go3 <- pnorm(cut.crel, t.d, sd3)
+pp.ngo3 <- 1-pnorm(cut.ssig, t.d, sd3)
+pp.intd3 <- 1 -pp.go3 - pp.ngo3
+
+subtable3 <- matrix(data=round(c(exp(t.d), pp.go3,pp.ngo3,pp.intd3),3), ncol=4)
+colnames(subtable3) <- c("True HR", "GO: $\\hat{\\theta} \\leq 0.708$",
+                         "NO-GO: $\\hat{\\theta} > 0.708$","Inconclusive")
+
+# Dual-criterion design: alpha=0.1, beta=0.2, n=38
+n4 <- 38
+sd4 <- sqrt((2^2)/n4)
+cut.ssig <- log(1)-qnorm(0.9)* sqrt(2^2 / n4) # different from 0.659
+cut.crel <- log(1)-qnorm(0.9)* sqrt(2^2 / n4)
+pp.go4 <- pnorm(cut.crel, t.d, sd4)
+pp.ngo4 <- 1-pnorm(cut.ssig, t.d, sd4)
+pp.intd4 <- 1 -pp.go4 - pp.ngo4
+
+subtable4 <- matrix(data=round(c(exp(t.d), pp.go4,pp.ngo4,pp.intd4),3), ncol=4)
+colnames(subtable4) <- c("True HR", "GO: $\\hat{\\theta} \\leq 0.659$",
+                         "NO-GO: $\\hat{\\theta} > 0.659$","Inconclusive")
+
+# Dual-criterion design: alpha=0.2, beta=0.1, n=38
+n5 <- 38
+sd5 <- sqrt((2^2)/n5)
+cut.ssig <- log(1)-qnorm(0.8)* sqrt(2^2 / n5)
+cut.crel <- log(1)-qnorm(0.8)* sqrt(2^2 / n5)
+pp.go5 <- pnorm(cut.crel, t.d, sd5)
+pp.ngo5 <- 1-pnorm(cut.ssig, t.d, sd5)
+pp.intd5 <- 1 -pp.go5 - pp.ngo5
+
+subtable5 <- matrix(data=round(c(exp(t.d), pp.go5,pp.ngo5,pp.intd5),3), ncol=4)
+colnames(subtable5) <- c("True HR", "GO: $\\hat{\\theta} \\leq 0.761$",
+                         "NO-GO: $\\hat{\\theta} > 0.761$","Inconclusive")
+@
+
+<<Table_3, echo=FALSE, results='asis'>>=
+kable(subtable1, format = "latex", booktabs = TRUE, escape = FALSE,
+      caption = "1. Dual-criterion design: $\\alpha=0.1$, DV=0.7, n=70") %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  cat()
+kable(subtable2, format = "latex", booktabs = TRUE, escape = FALSE,
+      caption = "2. Dual-criterion design: $\\alpha=0.1$, DV=0.7, n=52") %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  cat()
+kable(subtable3, format = "latex", booktabs = TRUE, escape = FALSE,
+      caption = "3. Dual-criterion design: $\\alpha=0.1, \\beta=0.1 (\\theta_A=0.5)$, n=55") %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  cat()
+kable(subtable4, format = "latex", booktabs = TRUE, escape = FALSE,
+      caption = "4. Dual-criterion design: $\\alpha=0.1,\\beta=0.2 (\\theta_A=0.5)$, n=38") %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  cat()
+kable(subtable5, format = "latex", booktabs = TRUE, escape = FALSE,
+      caption = "5. Dual-criterion design: $\\alpha=0.2,\\beta=0.1 (\\theta_A=0.5)$, n=38") %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  cat()
+@
+\pagebreak
+\section{Example 2: A single-arm PoC design with binary data}
+Experimental drug in Chinese patients with non-small-cell lung cancer. \\
+Primary endpoint is objective response rate (ORR), which quantifies the preliminary efficacy of the experimental drug. \\
+Because of the absence of a comparator (in single arm trials), NV is set to 7.5\% rather than 0, based on a literature review and clinical discussions. Hence the prior is chosen as a minimally informative unimodal beta prior distribution $\text{Beta}(0.0811,1)$, which gives a mean of 0.075.\\
+A minimum improvement of 10\% is considered necessary for further development, so the DV is set to be 10\%+7.5\%=17.5\%. Notice in this example, NV $<$ DV.\\
+So the dual-criterion is:
+\begin{enumerate}
+\item Bayesian statistical significance: $\mathbb{P}(\text{ORR} \geq 7.5\% | \text{data}) \geq 0.95$
+\item Clinical relevance: Posterior median $\geq 17.5\%$
+\end{enumerate}
+Null hypothesis: there is no effect of the drug, i.e. ORR=7.5\%\\
+$\mathbb{P}(\text{type I error})=\mathbb{P}(\text{reject } H_0 | H_0 \text{ is true})=\mathbb{P}(\text{reject } H_0 | \text{ORR} \leq 7.5\%)$\\
+$\mathbb{P}(\text{type II error})=\mathbb{P}(\text{not reject } H_0 | H_0 \text{ is false})=\mathbb{P}(\text{reject } H_0 | \text{ORR} = \text{response rate})$
+
+\subsection{Reproduce Figure 2}
+For this dual-criterion, the minimally required sample size is 22. For $n \geq 22$, clinical relevance ensures statistical significance. To see this, we are now going to reproduce Figure 2 in the paper.\\
+For a Beta($a$,$b$) prior, 
+\begin{equation*}
+\text{Beta}(a,b) = \frac{\theta^{a-1}(1-\theta)^{b-1}}{B(a,b)}
+\end{equation*}
+with binomial sampling (according to the paper), if we observe a number of successes ($r$) and failures ($n - r$), then the posterior is Beta($a + r$, $b + n - r$).\\
+In the below code, we first find the required numbers of responders (\texttt{rr}) to satisfy clinical relevance under different sample sizes ($n$), then we find the minimal sample size $n$ such that clinical relevance guarantees Bayesian statistical significance. \\
+The minimal sample size is 22. Final sample size is taken to be 25. \\
+\begin{center}
+<<Figure_2, results='hide', fig.width=5, echo=TRUE>>=
+#This function calculates the minimal sample size 
+# for Bayesian DC design with binary endpoint
+SS_DC_BayesBin <- function(
+  null.value, # null.value
+  p.positive  = 0.95, # required probability to be better than the null
+  dec.value,  # decision value
+  post.est = c("median","mean")[1], # median by default
+  a=1, b=1,    # prior specification, a Beta(a,b) prior
+  n.max = 1000 # numbers of iterations
+){
+  NV = null.value
+  DV = dec.value
+  n <- 1:n.max
+
+  # required number of responders to satisfy DV criterion (posterior mean)
+  if (post.est == "mean") { # if estimate posterior mean
+    rr = rep(NA,max(n)) # a vector to store rr (required responders)
+      for ( nn in n) { # n iterations
+      r = 0:nn # different numbers of responders
+      est1 = (a+r)/(a+b+nn) # posterior estimate based on different success numbers
+      rr[nn] = r[est1>=DV][1] # minimum r s.t. DV criterion is fulfilled
+      }
+    print(cbind(rr,n)) # required responders for each sample size n 
+    est = (a+rr)/(a+b+n) # posterior estimate of mean
+  }
+  
+  # required number of responders to satisfy DV criterion (posterior median)
+  if (post.est == "median") {
+    rr = rep(NA,max(n))
+    for ( nn in n) {
+      r = 0:nn
+      est1= qbeta(0.5,a+r,b+nn-r) # the median of beta posterior
+      rr[nn] = r[est1>=DV][1] # minimum r s.t. posterior median >= DV
+    }
+    print(cbind(rr,n))
+    est = qbeta(0.5,a+rr,b+n-rr)
+  }
+
+  p.obs = rr/n
+
+  # find n such that posterior prob >= p.positive (= 0.95)
+  # in other words, find n such that statistical significance is guaranteed.
+  post.crit <- 1 - pbeta(NV,a+rr,b+n-rr) # posterior probability of being greater than NV.
+  post.crit.index = post.crit >= p.positive # index=TRUE if the probability >= 0.95
+
+  # find n such that for all m>=n, statistical criterion is fulfilled
+  find.n =  cbind( n, rev(post.crit.index), 
+                   cumsum(rev(post.crit.index))==n, 
+                   # true if all m>=n fulfill stats criterion
+                   rev(n))
+  colnames(find.n) = c("index","okay","all.next.okay","n")
+
+  n.min=NULL
+
+  if (any(find.n[,3]==1) ) {
+    n.okay = find.n[find.n[,3]==1,,drop=FALSE] # take all the rows with all.next.okay==1
+    n.min = n.okay[nrow(n.okay),4] # take the n in the last row (find minimum n)
+    n.min.15 = n.min+15
+    est=round(est,3)
+    ss.table = data.frame( n=n[1:n.min.15], 
+                           # sample size from 1 to n.min+10
+                           r=rr[1:n.min.15], 
+                           # number of responders needed for DV criterion
+                           p.obs=p.obs[1:n.min.15], 
+                           est = est[1:n.min.15], 
+                           # posterior estimate of median (by default)
+                           post.p.positive=post.crit[1:n.min.15], 
+                           # posterior probability of a positive effect
+                           okay=post.crit.index[1:n.min.15]
+                           # TRUE if statistical significance is satisfied
+                           )}
+
+  if (is.null(n.min))
+    stop("No sample size satisfies required posterior 
+         probability criterion pr(p>NV): try higher n.max")
+
+plot( 1:(n.min+15), post.crit[1:(n.min+15)], type="p", xaxs="i", xlab="n",
+        ylab="pr(p>NV)",xlim = c(0,n.min+20), ylim=c(0.5,1),
+        lwd=1, pch = ifelse(post.crit.index,16,1),
+        main="prob(p>NV) as a function of n", cex.lab=1.4, cex.main=1.4)
+  abline(h=p.positive, lty=2)
+  abline(v=n.min, lty=3)
+  text(1.05*n.min, 0.6, paste("n.min=",n.min, sep=''),adj=0)
+  text(30, 0.8, paste("a=",round(a,4)))
+  
+  return(list(ss.table=ss.table,n.min=n.min))}
+
+#Example
+nB <-  SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, 
+                      dec.value = 0.175, a = 0.0811, b=1,
+                      post.est = "median")
+@
+\end{center}
+\begin{table}[H]
+\centering
+<<Table_Figure_2, echo=TRUE, results='asis'>>=
+# returns a table of minimal sample size 
+kable(nB$ss.table)
+@
+\caption*{Additional Table: Minimal sample size required for the analysis.}
+\label{Additional Table}
+\end{table}
+\pagebreak
+Now we explore how the prior choice affect the minimum sample size. Firstly, it might be more reasonable to choose the prior with median 0.075, rather than with mean 0.075. So we try Beta(0.2676,1) as the prior, as it has median 0.075. The below codes and plot explore how this affects the minimum sample size. From the plot we can spot some slight difference compared to the previous plot, but their difference is not significant.
+\begin{center}
+<<prior_sample_size1, fig.width=5, echo=TRUE, results='hide'>>=
+
+# First try beta prior with median 0.075, rather than mean 0.075
+# Target median
+median_target <- 0.075
+beta_param <- 1
+
+# Function to find alpha such that the median of Beta(alpha, beta=1) is 0.075
+find_alpha <- function(alpha) {
+  abs(pbeta(median_target, alpha, beta_param) - 0.5)
+}
+
+# Use optimization to find alpha
+alpha_result <- optimize(find_alpha, c(0.001, 10))$minimum
+alpha_result # 0.2676044
+
+nM <-  SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, 
+                      dec.value = 0.175, a = alpha_result, b=1,
+                      post.est = "median")
+nM$n.min # is still 22
+
+@
+\end{center}
+Additionally, we explore how the minimum sample size changes according to different values of $a$ in the Beta($a,b$) prior. The below plots give the relationship between the minimal sample size and the choices of $a$, with the median and mean being the posterior estimate, respectively. We can see from the plots that there are jumps of minimal sample sizes around some values of $a$, especially in the first plot. When the posterior estimate is the mean (the second plot), the jumping pattern only seem to occur for $a$ values closer to 1. This might suggest that the posterior mean gives more stability and less sensitivity of minimal sample size with respect to prior choices. For both cases, we obtain the values of $a$ at these jumping points and included relevant plots in the Appendix. 
+<<prior_sample_size2, echo=TRUE, cache=TRUE, results='hide', fig.show='hide'>>=
+# Next plot the minimum sample size VS a (in Beta prior)
+alpha_vector <- seq(0.005,1,0.005)
+
+# posterior median
+n_min_vector_median <- rep(0, length(alpha_vector))
+for (i in 1:length(alpha_vector)){
+  a <- alpha_vector[i]
+  n <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95,
+                      dec.value = 0.175, a = a, b=1,
+                      post.est = "median")
+  n_min_vector_median[i] <- n$n.min[[1]]
+}
+
+# posterior mean
+n_min_vector_mean <- rep(0, length(alpha_vector))
+for (i in 1:length(alpha_vector)){
+  a <- alpha_vector[i]
+  n <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95,
+                      dec.value = 0.175, a = a, b=1,
+                      post.est = "mean")
+  n_min_vector_mean[i] <- n$n.min[[1]]
+}
+@
+\begin{center}
+<<prior_sample_size3, fig.show='asis'>>=
+plot(alpha_vector,n_min_vector_median, type="l",
+     xlab="alpha", ylab="n_min", las=1, main = "Posterior median")
+plot(alpha_vector,n_min_vector_mean, type="l",
+     xlab="alpha", ylab="n_min", las=1, main = "Posterior mean")
+# alpha_vector <- seq(0.005,1,0.005)
+# n_min_vector_stored <- c(21,21,21,21,21,21,21,21,21,21,21,21,21,21,21, 1
+#                          22,22,22,22,22,22,22,22,22,22,22,22,22,22,22, 2
+#                          22,22,22,22,22,22,22,22,22,22,22,22,22,22,22, 3
+#                          22,22,22,22,22,22,22,22,22,17,17,17,23,23,23, 4
+#                          23,23,23,23,23,23,23,23,23,23,23,23,23,23,23, 5
+#                          23,23,23,23,23,23,23,17,17,17,17,17,18,18,18, 6
+#                          18,18,18,18,18,18,18,18,18,18,24,24,24,24,24, 7
+#                          24,24,24,24,24,18,18,18,18,18,18,18,18,18,18, 8
+#                          18,18,18,18,18,18,18,18,18,18,19,19,19,19,19, 9
+#                          19,19,19,19,19,19,19,19,19,19,19,19,19,19,19, 10
+#                          19,19,19,19,19,19,19,19,19,19,19,19,19,19,19, 11
+#                          19,19,19,19,19,19,19,20,20,20,20,20,20,20,20, 12
+#                          20,20,20,20,20,20,20,20,20,20,20,20,20,20,20, 13
+#                          20,20,20,20,20)
+@
+\end{center}
+
+\subsection{Reproduce Table 4}
+Table 4 results show that this dual-criterion design is a three-outcome design with desirable properties. \\
+Introduction of the three-outcome design \citet{SARGENT}.\\
+A design with three possible outcomes includes an additional region, called the inconclusive region, between these two regions. This requires two cut-off points, $r$ and $s$, with the following decision rule\\
+If $Y \leq r$, reject $H_1$\\
+If $r < Y < s$, inconclusive\\
+If $s \leq Y$, reject $H_0$\\
+Define the following parameters
+\begin{align*}
+\alpha &= \max_{p \in (0,p_0]} \mathbb{P}(\text{reject } H_0 | H_0 \text{ true}) = \mathbb{P}(Y \geq s | p = p_0)\\
+\beta &= \max_{p \in [p_1,1)} \mathbb{P}(\text{reject } H_1 | H_1 \text{ true}) = \mathbb{P}(Y \leq r | p = p_1)\\
+\eta &= \max_{p \in (0,p_0]} \mathbb{P}(\text{reject } H_1 | H_0 \text{ true}) = \mathbb{P}(Y \leq r | p = p_0)\\
+\pi &= \max_{p \in [p_1,1)} \mathbb{P}(\text{reject } H_0 | H_1 \text{ true}) = \mathbb{P}(Y \geq s | p = p_1)
+\end{align*}
+where $\alpha$ is the maximum probability of making a wrong decision by rejecting the null hypothesis when it is true, and $\eta$ is the minimum probability of making the decision to reject alternative hypothesis when the null is true. In contrast to the standard two-outcome design, $\eta + \alpha <1$ due to the presence of the inconclusive region. The same interpretation holds true for $\pi$ and $\beta$ relative to the alternative hypothesis.\\
+Define $\lambda := \mathbb{P}(r < Y < s | p = p_0)$ and $\delta := \mathbb{P}(r < Y < s | p = p_1)$, then we have 
+\begin{equation*}
+\eta + \lambda + \alpha = 1, \quad \quad
+\beta + \delta + \pi = 1
+\end{equation*}
+In the paper ``Beyond p-values: A phase II dual-criterion design with statistical significance and clinical relevance'', they consider a three-outcome design with $H_0: \text{ORR} \leq 7.5\%$, $H_1: \text{ORR} \geq 27.5\%$, $\alpha = 0.05$, $\beta = 0.1$, $\eta = 0.8$, $\pi = 0.9$, and the minimal sample size is 27. \\
+The below code reproduce Table 4. The first design is the situation when sample size is the minimum sample size, at which the inconclusive case does not happen. The second design has larger sample size ($n=36$), where an inconclusive case will happen.  For a ``GO'' decision, we need the number of responders to be larger or equal to 7 according to \hyperref[Additional Table]{Additional Table} in the sample size discussion, so that the clinical relevance guarantees the statistical significance. For ``NO-GO'' decision, the maximum number of responders are chosen when the statistical significance is just not satisfied. The third design is the three-outcome design, where the cut values of numbers of responders are chosen based on the values of $\eta$ and $\alpha$.
+<<Table_4_code, echo=TRUE, results='asis'>>=
+# a vector of true ORR values
+ORR.t <- c(0.075, 0.125, 0.175, 0.225, 0.275)
+a = 0.0811
+b=1
+
+# Dual-criterion design: alpha=0.05, DV=0.175, n=25
+n1 <- 25 # is the minimum sample size
+DV <- 0.175
+NV <- 0.075
+alpha <- 0.05
+
+# required number of responders for statistical stignificance
+cut.ssig <- nB$ss.table$r[nB$ss.table$n==n1] 
+# required number of responders for clinical relevance
+cut.crel <- nB$ss.table$r[nB$ss.table$n==n1] 
+
+# calculate probabilities
+p_GO1 <- round(1-pbinom(cut.crel-1, n1, prob=ORR.t, lower.tail = T),3)
+p_NOGO1 <- round(pbinom(cut.ssig-1, n1, prob=ORR.t, lower.tail = T),3)
+p_inconcl1 <- round(1- p_GO1 - p_NOGO1,3)
+
+subtable_1 <- matrix(data=c(ORR.t*100, round(c(p_GO1,p_NOGO1,p_inconcl1),3)), ncol=4)
+colnames(subtable_1) <- c("True ORR(\\%)", "GO: $r \\geq 5$",
+                         "NO-GO: $r < 5$","Inconclusive")
+
+# Dual-criterion design: alpha=0.05, DV=0.175, n=36
+n2 <- 36
+DV <- 0.175
+NV <- 0.075
+alpha <- 0.05
+
+# required number of responders for clinical relevance
+cut.crel <- nB$ss.table$r[nB$ss.table$n==n2] 
+# find cut.ssig: required number of responders for statistical significance
+r <- seq(0,10,1)
+crit <- 1 - pbeta(NV,a+r,b+n2-r) # posterior probability of being less than NV.
+crit.index = crit < 1-alpha
+cut.ssig <- max(r[crit.index])
+
+# calculate probabilities
+p_GO2 <- round(1-pbinom(cut.crel-1, n2, prob=ORR.t, lower.tail = T),3)
+p_NOGO2 <- round(pbinom(cut.ssig, n2, prob=ORR.t, lower.tail = T),3)
+p_inconcl2 <- round(1- p_GO2 - p_NOGO2,3)
+
+subtable_2 <- matrix(data=c(ORR.t*100, round(c(p_GO2,p_NOGO2,p_inconcl2),3)), ncol=4)
+colnames(subtable_2) <- c("True ORR(\\%)", "GO: $r \\geq 7$",
+                         "NO-GO: $r \\leq 5$","Inconclusive: r = 6")
+
+# Three-outsome design: n=27, H0:ORR<0.075, H1:ORR>=0.275, 
+# alpha=0.05, beta=0.1, eta=0.8, pi=0.9
+n3 <- 27 # is the minimum sample size under three-criterion design
+eta <- 0.8
+alpha <- 0.05
+
+# find s and r for three-outcome design
+s <- qbinom(alpha, n3, prob=0.075, lower.tail = F)+1
+r <- qbinom(eta, n3, prob=0.075, lower.tail = T)
+
+# calculate probabilities
+p_GO3 <- round(1-pbinom(s-1, n3, prob=ORR.t, lower.tail = T),3) # Y >= s
+p_NOGO3 <- round(pbinom(r, n3, prob=ORR.t, lower.tail = T),3) # Y <= r
+p_inconcl3 <- round(1- p_GO3 - p_NOGO3, 3)
+
+subtable_3 <- matrix(data=c(ORR.t*100, round(c(p_GO3,p_NOGO3,p_inconcl3),3)), ncol=4)
+colnames(subtable_3) <- c("True ORR(\\%)", "GO: $r \\geq 5$",
+                         "NO-GO: $r \\leq 3$","Inconclusive: r = 4")
+
+@
+
+
+<<Table_4, echo=FALSE, results='asis'>>=
+kable(subtable_1, format = "latex", booktabs = TRUE, escape = FALSE,
+      caption = "1. Dual-criterion design: $\\alpha=0.1$, DV=0.7, n=70") %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  cat()
+kable(subtable_2, format = "latex", booktabs = TRUE, escape = FALSE,
+      caption = "2. Dual-criterion design: $\\alpha=0.1$, DV=0.7, n=52") %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  cat()
+kable(subtable_3, format = "latex", booktabs = TRUE, escape = FALSE,
+      caption = "3. Three-outcome design: $n=27$") %>%
+  kable_styling(latex_options = c("hold_position", "striped")) %>%
+  cat()
+@
+
+\pagebreak
+%% References
+\appendix
+\section*{Appendix}
+\begin{center}
+Posterior median
+<<appendix1, fig.width=10, echo=TRUE, results='hide'>>=
+# First get the values of a in Beta prior where the jumps in minimal sample size occurs.
+(a_vector <- alpha_vector[c(54,55,57,58,82,83,87,88, 100, 101, 110, 111, 172,173)])
+
+par(mfrow=c(1,2))
+n1 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[1], b=1, post.est = "median")
+n2 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[2], b=1, post.est = "median")
+
+n3 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[3], b=1, post.est = "median")
+n4 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[4], b=1, post.est = "median")
+
+n5 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[5], b=1, post.est = "median")
+n6 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[6], b=1, post.est = "median")
+
+n7 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[7], b=1, post.est = "median")
+n8 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[8], b=1, post.est = "median")
+
+n9 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[9], b=1, post.est = "median")
+n10 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[10], b=1, post.est = "median")
+
+n11 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[11], b=1, post.est = "median")
+n12 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[12], b=1, post.est = "median")
+
+n13 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[13], b=1, post.est = "median")
+n14 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector[14], b=1, post.est = "median")
+@
+\end{center}
+
+\begin{center}
+Posterior mean
+<<appendix2, fig.width=10, echo=TRUE, results='hide'>>=
+par(mfrow=c(1,2))
+a_vector_mean <- alpha_vector[c(164,165,175,176,191,192)]
+n1 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector_mean[1], b=1, post.est = "mean")
+n2 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector_mean[2], b=1, post.est = "mean")
+
+n3 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector_mean[3], b=1, post.est = "mean")
+n4 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector_mean[4], b=1, post.est = "mean")
+
+n5 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector_mean[5], b=1, post.est = "mean")
+n6 <- SS_DC_BayesBin(null.value = 0.075, p.positive = 0.95, dec.value = 0.175, 
+               a = a_vector_mean[6], b=1, post.est = "mean")
+@
+\end{center}
+<<appendix3, echo=FALSE, results='asis', eval=FALSE>>=
+kable(n6$ss.table, caption = paste("a=0.6, n min =",n6$n.min))
+kable(n8$ss.table, caption = paste("a=0.8, n min =",n8$n.min))
+kable(n9$ss.table, caption = paste("a=0.9, n min =",n9$n.min))
+@
+
+\bibliographystyle{apalike}
+\bibliography{bibliography}
+
+\newpage
+\section*{Computational details}
+<< "sessionInfo" >>=
+cat(paste(Sys.time(), Sys.timezone(), "\n"))
+sessionInfo()
+@
+
+\end{document}
