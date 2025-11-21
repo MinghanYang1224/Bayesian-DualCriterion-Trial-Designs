@@ -24,7 +24,7 @@
 % }
 
 \newcommand\mail{yangmi@ethz.ch}
-\title{\textbf{Code exploration}}
+\title{\textbf{Reproducible study and further explorations on Bayesian dual-criterion design}}
 \author{Minghan Yang}
 \date{\today}
 
@@ -41,7 +41,7 @@
   urlcolor=blue,
 }
 
-<< "main-setup", echo = FALSE>>=
+<< "main-setup", echo = FALSE, message=FALSE, warning=FALSE>>=
 ## setting knitr options (see https://yihui.org/knitr/ for all the options)
 library(knitr)
 opts_knit$set(concordance = FALSE)
@@ -63,28 +63,27 @@ library(latex2exp)
 \begin{document}
 \maketitle
 
-
 \begin{abstract}
 Related to paper ``Beyond p-values: A phase II dual-criterion design with statistical significance and clinical relevance'' \citet{Roychoudhury2018}.
 \end{abstract}
 
 \section{Introduction}
-Proof-of-concept (POC) in Phase II trails is important in investigating the efficacy of an experimental drug. It will influence the decision of whether continuing or not continuing the development of this drug. \\
+Proof-of-concept (POC) in Phase II trails is important in investigating the efficacy of an experimental drug. It will influence the decision of whether continuing or not on the development of the drug. \\
 Dual-criterion design in frequentist and Bayesian applications are discussed. \\
 Three generic phase II designs are reviewed:
 \begin{enumerate}
 \item Standard design\\
-For comparative treatment and control trails, it puts forward criteria expressed as error rates: Type I error control and Power (correctly reject $H_0$ when it is false).\\
-Control type I error and maximize power.\\
+For comparative treatment and control trails, it puts forward criteria expressed as error rates: Type I error control and power (correctly reject $H_0$ when it is false).\\
+We want to control type I error and maximize power.\\
 Type I error: $\mathbb{P}(\text{reject } H_0 | H_0 \text{ is true})=\alpha$\\
 Type II error: $\mathbb{P}(\text{not reject } H_0 | H_0 \text{ is false})=\beta$.\\
 Limitation: statistical significant only guarantees evidence to reject ``No effect", but is not sufficient for clinical perspective. Also, it always result in success or failure according to statistical significance.\\
 Increasing the sample size increases the power for effects better than null.
 \item Dual-criterion design\\
 Considers both the statistical significance and the effect estimate. \\
-Required inputs: type I error control (null hypothesis and type I error $\alpha$) and a decision value (DV). The DV is same as the target difference in Fisch's paper. It is the minimal effect estimate needed for trail success (if higher than this value with moderate confidence, then GO).\\
-By considering both, we have both statistical significance and guarantees a sufficiently large effect estimate.\\
-The dual-criterion is more demanding, the resulting power of study is less compared to standard design.\\
+Required inputs: type I error control (null hypothesis and type I error $\alpha$) and a decision value (DV). The DV is same as the ``target difference'' in Fisch's paper. It is the minimal effect estimate needed for trail success (if higher than this value with moderate confidence, then a ``GO'' decision is made).\\
+By considering both criterion, we have both statistical significance and guarantees a sufficiently large effect estimate.\\
+The dual-criterion is more demanding, the resulting power of study is less than that of a standard design.\\
 Power is only increased for values superior to the DV since inferior values are clinically irrelevant.\\
 Decisions for dual-criterion design:
 \begin{center}
@@ -126,13 +125,13 @@ In the paper, the log hazard ratio $\theta$ ($\log$ HR) is used instead of the h
 Firstly, according to the Central Limit Theorem, as the sample size increases, the distribution of the estimator (the log HR) approaches a normal distribution. Also, the HR itself is a ratio of hazard rates and is positively skewed, meaning it doesn’t naturally fit a normal distribution. Taking the logarithm of the HR stabilizes its variance, transforming the skewed HR distribution into one that is more symmetric and closer to normal. Moreover, this approximate normality of $\log$ HR is useful in sample size calculation, which is discussed in the next session.
 
 \subsection{Sample size}
-Given the significance level $\alpha$, the null value (NV) and the decision value (DV) for $\log$ HR, we can calculate the minimum sample size (for normally distributed data). Notice here that the DV $<$ NV, $\log$ DV $<$ $\log$ NV.
+Given the significance level $\alpha$, the null value (NV) and the decision value (DV) for $\log$ HR, we can calculate the minimum sample size (for normally distributed data). Notice here that for $\log$ HR, DV $<$ NV, where DV, NV are log hazard ratios.
 \begin{equation*}
 n_{\text{min}}=\frac{\sigma^2 \times z_{\alpha}^2}{(\text{NV}-\text{DV})^2}
 \end{equation*}
 where $\sigma$ is the outcome standard deviation, and takes the value 2 under equal randomization for the standard normal approximation to time-to-event data. 
 %In the log scale, if we say the value is within $\pm 2$ about the truth, then this translates into a range of approximately $\pm 100 \time 2 \%$ about the truth on the original scale. 
-The $z_{\alpha}$ is the $100(1-\alpha)\%$ quantile of the standard normal distribution. The $n_{\text{min}}$ gives the minimum sample size that implies statistical significance if the effect estimate equals the DV. This value is calculated under the situation that both criterion are just satisfied. As illustrated in the below graph, when the effect estimate $\theta= \log$ DV, and the lower bound of the confidence interval just touches the NV so that statistical significance is reached, we have the minimum sample size. Notice that when sample size equals the minimum sample size, the half-width of the confidence interval $z_{\alpha}\sqrt{\frac{\sigma^2}{n_{\text{min}}}}$ equals NV-DV, so there will be no ``Inconclusive'' decisions. When the sample size is larger, the confidence interval becomes narrower, then an ``Inconclusive'' decision will occur.
+$z_{\alpha}$ is the $100(1-\alpha)\%$ quantile of the standard normal distribution. $n_{\text{min}}$ gives the minimum sample size that implies statistical significance if the effect estimate equals the DV. This value is calculated under the situation that both criterion are just satisfied. As illustrated in the below graph, when the effect estimate $\theta=$ DV, and the lower bound of the confidence interval just touches the NV so that statistical significance is reached, we have the minimum sample size. Notice that when sample size equals the minimum sample size, the half-width of the confidence interval $z_{\alpha}\sqrt{\frac{\sigma^2}{n_{\text{min}}}}$ equals NV-DV, so there will be no ``Inconclusive'' decisions. When the sample size is larger, the confidence interval becomes narrower, then an ``Inconclusive'' decision will occur.
 \begin{center}
 << Minimum_sample_size, echo=FALSE>>=
 # Define x-axis range and labels
@@ -158,13 +157,13 @@ text(x=5, y=0.31, labels = "confidence interval", cex=1)
 \end{center}
 
 \subsection{Operating characteristics}
-The operating characteristics are the type I error and power of the clinical trial design. \\
+The operating characteristics are the type I error and the power of the clinical trial design. \\
 For dual-criterion designs, the power at the DV is approximately 50\%, so that if the true parameter equals the DV, there is roughly equal chance that the effect estimate lies on either side of the DV. Having 50\% at the DV does not mean the study is under-powered.
 
 \subsection{Reproduce Figure 1} \label{1.4}
-In Figure 1, the two plots illustrate the operating characteristics of dual-criterion designs with 309 and 420 events. The number 309 is the minimum sample size calculated under the example conditions $\sigma=2$, $\alpha=2.5\%$, NV = $\log(1)$ and DV = $\log(0.8)$ for $\log$ HR.
+In Figure 1, the two plots illustrate the operating characteristics of dual-criterion designs with 309 and 420 events. The number 309 is the minimum sample size calculated under the example conditions $\sigma=2$, $\alpha=2.5\%$, NV = $\log(1)$ and DV = $\log(0.8)$ for $\log$ HR:
 \begin{equation*}
-n_{\text{min}}=\frac{2^2 \times z_{0.025}^2}{(\log{1}-\log{0.8})^2} = 308.594 \approx 309
+n_{\text{min}}=\frac{2^2 \times z_{0.025}^2}{(\log{1}-\log{0.8})^2} = 308.594 \approx 309.
 \end{equation*}
 The probability of making a ``GO'' decision is the probability of the estimate smaller than the DV (i.e. clinical relevance) while the NV is outside the confidence interval (i.e. statistical significance). The ``NO-GO'' decision is made when the estimate is larger than the DV, and the NV is inside the confidence interval. The ``Inconclusive'' decisions are made if neither ``GO'' nor ``NO-GO'' is satisfied. The probability of ``Inconclusive'' decision is hence 1 minus the probability of ``GO'' and ``NO-GO'' decisions. \\
 Below code presents the process of obtaining Figure 1 in the paper \citet{Roychoudhury2018}. An extra notice here is the calculation of the cut value for statistical significance when the sample size is larger than $n_{\text{min}}$. As we mentioned earlier, when $n > n_{\text{min}}$, the confidence interval is shorter, so the cut value \texttt{cut.ssig} of the ``NO-GO'' decision should be a value between DV and NV such that $z_{\alpha}\sqrt{\frac{\sigma^2}{n}} = \text{NV} - \texttt{cut.ssig}$. So in this case, the $\texttt{cut.ssig} = \log(1) - z_{\alpha}\sqrt{\frac{\sigma^2}{n}}$.
@@ -380,9 +379,8 @@ kable(subtable5, format = "latex", booktabs = TRUE, escape = FALSE,
 \section{Example 2: A single-arm PoC design with binary data}
 Experimental drug in Chinese patients with non-small-cell lung cancer. \\
 Primary endpoint is objective response rate (ORR), which quantifies the preliminary efficacy of the experimental drug. \\
-Prior: minimally informative unimodal beta prior distribution $\text{Beta}(0.0811,1)$, which has mean 0.075.\\
-Because of the absence of a comparator (in single arm trials), NV is set to 7.5\% rather than 0, based on a literature review and clinical discussions.\\
-A minimum improvement of 10\% is considered necessary for further development, so DV is set to be 10\%+7.5\%=17.5\%. Notice in this example, the NV < DV.\\
+Because of the absence of a comparator (in single arm trials), NV is set to 7.5\% rather than 0, based on a literature review and clinical discussions. Hence the prior is chosen as a minimally informative unimodal beta prior distribution $\text{Beta}(0.0811,1)$, which gives a mean of 0.075.\\
+A minimum improvement of 10\% is considered necessary for further development, so the DV is set to be 10\%+7.5\%=17.5\%. Notice in this example, NV $<$ DV.\\
 So the dual-criterion is:
 \begin{enumerate}
 \item Bayesian statistical significance: $\mathbb{P}(\text{ORR} \geq 7.5\% | \text{data}) \geq 0.95$
