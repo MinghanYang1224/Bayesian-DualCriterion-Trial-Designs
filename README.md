@@ -2,7 +2,7 @@
 The `report_Bayesian_DC.pdf` reproduces and explores methods discussed in paper "Beyond p-values: A phase II dual-criterion design with statistical significance and clinical relevance" by Satrajit Roychoudhury *et al.* (2018). 
 It addresses Bayesian dual-criterion design, sample size calculation, operational characteristics, and two cases in the paper: a randomized PoC design with time-to-event data and a single-arm PoC design with binary data. It also explores how the prior choices affect the minimum sample size. 
 
-The `report_Group_Seq.pdf` focuses on reproducing results and exploring extensions from the paper “A practical guide to Bayesian group sequential designs” Gsponer *et al*. (2014), and looks at applications to paper by Roychoudhury *et al.* (2018). It connects Bayesian dual-criterion design with group sequencial testings, interim analysis, unit information likelihood ratios, and sample size optimization.
+The `report_Group_Seq.pdf` focuses on reproducing results and exploring extensions from the paper “A practical guide to Bayesian group sequential designs” Gsponer *et al*. (2014), and looks at applications to paper by Roychoudhury *et al.* (2018). It connects Bayesian dual-criterion design with group sequencial testings, unit information likelihood ratios, and sample size optimization.
 
 Citations:
 
